@@ -1,0 +1,132 @@
+{
+  "name": "repitch",
+  "version": "1.0.0",
+  "description": "RePitch — Real-time system audio pitch shifter for macOS. Change the pitch of Spotify, YouTube, Safari and any other app without affecting tempo.",
+  "main": "build/electron/main.js",
+  "homepage": "./",
+  "author": {
+    "name": "Matteo Frige",
+    "email": "matteofrige@gmail.com"
+  },
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "react-build": "react-scripts build",
+    "electron-build": "tsc -p tsconfig.electron.json",
+    "dev": "concurrently -k -n REACT,ELECTRON -c blue,magenta \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && npm run electron-build && cross-env ELECTRON_IS_DEV=1 electron .\"",
+    "build": "npm run react-build && npm run electron-build",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder --mac --publish=never",
+    "build-dmg": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64 --publish=never",
+    "dist-win": "npm run build && electron-builder --win nsis --publish=never",
+    "dist-linux": "npm run build && electron-builder --linux AppImage --publish=never",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "electron-is-dev": "^2.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^42.2.0",
+    "electron-builder": "^26.8.1",
+    "react-scripts": "5.0.1",
+    "typescript": "^4.9.5",
+    "wait-on": "^7.2.0"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      "last 2 chrome version"
+    ],
+    "development": [
+      "last 1 chrome version"
+    ]
+  },
+  "build": {
+    "extends": null,
+    "appId": "com.repitch.app",
+    "productName": "RePitch",
+    "copyright": "Copyright © 2026 Matteo Frige",
+    "asar": true,
+    "files": [
+      "build/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.music",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "RePitch needs access to audio input devices to pitch-shift system audio.",
+        "NSAudioCaptureUsageDescription": "RePitch captures system audio to pitch-shift it in real time."
+      }
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Audio"
+    },
+    "dmg": {
+      "title": "RePitch ${version}",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 140,
+          "y": 200,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  }
+}

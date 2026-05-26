@@ -1,0 +1,306 @@
+/* =========================================================
+   Metronome — dark theme using project CSS variables
+   ========================================================= */
+
+.metronome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 28px 32px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.metro-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.metro-volume-row .metro-slider {
+  flex: 1;
+}
+
+.metro-volume-icon {
+  font-size: 0.95rem;
+  opacity: 0.7;
+}
+
+/* ---- BPM display ---- */
+
+.metro-bpm-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.metro-bpm-value {
+  font-family: var(--font-mono);
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.metro-bpm-label {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ---- Slider row ---- */
+
+.metro-bpm-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.metro-nudge {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev-3);
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+}
+
+.metro-nudge:hover {
+  background: var(--accent-strong);
+  color: var(--text-primary);
+  border-color: transparent;
+}
+
+.metro-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-elev-3);
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.metro-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-shadow);
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.metro-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 5px var(--accent-shadow);
+}
+
+.metro-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  box-shadow: 0 0 0 3px var(--accent-shadow);
+  cursor: pointer;
+}
+
+/* ---- Numeric input row ---- */
+
+.metro-bpm-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metro-bpm-input {
+  width: 72px;
+  background: var(--bg-elev-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  padding: 5px 10px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+  /* hide spinner arrows */
+  -moz-appearance: textfield;
+}
+
+.metro-bpm-input::-webkit-outer-spin-button,
+.metro-bpm-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.metro-bpm-input:focus {
+  border-color: var(--accent);
+}
+
+.metro-bpm-input-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ---- Section label ---- */
+
+.metro-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  align-self: flex-start;
+}
+
+/* ---- Beat-options buttons ---- */
+
+.beat-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.beat-option {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev-3);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.beat-option:hover {
+  background: var(--bg-elev-3);
+  border-color: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.beat-option.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--accent-shadow);
+}
+
+/* ---- Beat lights ---- */
+
+.beat-lights {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.beat-light {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-elev-3);
+  border: 1px solid var(--border-strong);
+  transition: background 0.06s ease, box-shadow 0.06s ease;
+}
+
+/* Non-accent active beat */
+.beat-light.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  box-shadow: 0 0 10px 3px rgba(122, 162, 255, 0.55);
+}
+
+/* Accent (beat 0) idle */
+.beat-light.accent {
+  border-color: var(--warn);
+}
+
+/* Accent (beat 0) active */
+.beat-light.accent.active {
+  background: var(--warn);
+  border-color: var(--warn);
+  box-shadow: 0 0 14px 5px rgba(245, 177, 76, 0.6);
+}
+
+/* ---- Start / Stop button ---- */
+
+.metro-toggle {
+  padding: 10px 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev-3);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  min-width: 140px;
+}
+
+.metro-toggle:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px 2px var(--accent-shadow);
+}
+
+.metro-toggle.running {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px 2px var(--accent-shadow);
+}
+
+.metro-toggle.running:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 12px 2px rgba(255, 107, 107, 0.4);
+}
+
+.metro-flash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.metro-flash input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}

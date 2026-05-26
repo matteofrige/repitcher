@@ -1,0 +1,9 @@
+{
+  "short_name": "RePitch",
+  "name": "RePitch — Real-time Pitch Shifter",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0b0e14",
+  "background_color": "#0b0e14"
+}

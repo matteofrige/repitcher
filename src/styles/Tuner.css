@@ -1,0 +1,239 @@
+/* ============================================================
+   Tuner.css — dark accordatore UI using global CSS variables
+   ============================================================ */
+
+.tuner {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+/* Error banner */
+.tuner-error {
+  padding: 10px 14px;
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ---- Main note display ---- */
+.tuner-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 0 8px;
+}
+
+.tuner-note {
+  font-family: var(--font-mono);
+  font-size: 80px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -2px;
+  transition: color 0.15s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.tuner-note.in-tune {
+  color: var(--success);
+}
+
+.tuner-note.out-of-tune {
+  color: var(--text-primary);
+}
+
+.tuner-note.no-signal {
+  color: var(--text-muted);
+}
+
+.tuner-octave {
+  font-size: 36px;
+  font-weight: 500;
+  margin-top: 14px;
+  color: var(--text-secondary);
+}
+
+.tuner-freq {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  min-height: 20px;
+}
+
+/* ---- Meter ---- */
+.tuner-meter-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.tuner-meter-ticks {
+  position: relative;
+  height: 18px;
+}
+
+.tuner-tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.tuner-meter {
+  position: relative;
+  height: 12px;
+  background: var(--bg-elev-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: visible;
+}
+
+.tuner-meter-center {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 2px;
+  height: 18px;
+  background: var(--border-strong);
+  border-radius: 1px;
+  transform: translateX(-50%);
+}
+
+.tuner-needle {
+  position: absolute;
+  top: -4px;
+  width: 3px;
+  height: 20px;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  transition: left 0.08s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tuner-needle.in-tune {
+  /* glowing green handled via inline style */
+}
+
+.tuner-meter-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.tuner-meter-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.tuner-cents {
+  font-weight: 700;
+}
+
+.tuner-cents.in-tune {
+  color: var(--success);
+}
+
+.tuner-cents.out-of-tune {
+  color: var(--danger);
+}
+
+.tuner-label {
+  font-size: 12px;
+}
+
+.tuner-label.in-tune {
+  color: var(--success);
+}
+
+.tuner-label.out-of-tune {
+  color: var(--danger);
+}
+
+/* ---- Waveform canvas ---- */
+.tuner-wave-wrap {
+  height: 150px;
+  background: var(--bg-elev-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.tuner-wave {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---- Controls ---- */
+.tuner-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Reuse App-level .slider-section / .pitch-slider / .pitch-display / .slider-labels
+   from PitchControl.css — they cascade in from the global stylesheet.
+   Only define overrides here if needed. */
+
+/* Note target selector */
+.tuner-note-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tuner-note-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tuner-note-select {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-elev-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b748a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.tuner-note-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tuner-note-select:hover {
+  border-color: var(--border-strong);
+}
