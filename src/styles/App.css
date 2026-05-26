@@ -35,19 +35,66 @@ body {
   background: rgba(30, 41, 59, 0.95);
   border: 1px solid rgba(71, 85, 105, 0.3);
   border-radius: 20px;
-  padding: 40px 30px;
+  padding: 24px 30px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 18px;
+}
+
+.app-container--wide {
+  max-width: 920px;
+}
+
+/* Tab Pitch: due colonne — visualizer a sinistra, controlli a destra */
+.pitch-layout {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.pitch-visual {
+  display: flex;
+  min-height: 320px;
+}
+
+.pitch-visual .visualizer-container {
+  height: 100%;
+  flex: 1;
+}
+
+.pitch-visual-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 12px;
+  color: #6b748a;
+  font-size: 0.9rem;
+}
+
+.pitch-controls-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Il footer scende in fondo alla colonna destra */
+.pitch-controls-col .app-footer {
+  margin-top: auto;
 }
 
 .app-header {
   text-align: center;
   /* Only the top header is a drag handle, so scrolling works everywhere else. */
   -webkit-app-region: drag;
-  padding-top: 6px;
+  padding-top: 2px;
 }
 
 /* Keep interactive controls clickable, not draggable. */
@@ -127,13 +174,13 @@ canvas,
 }
 
 .app-title {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   background: linear-gradient(135deg, #64b5f6 0%, #81c784 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .app-subtitle {
@@ -388,5 +435,17 @@ canvas,
 
   .app-subtitle {
     font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-container--wide {
+    max-width: 500px;
+  }
+  .pitch-layout {
+    grid-template-columns: 1fr;
+  }
+  .pitch-visual {
+    min-height: 200px;
   }
 }

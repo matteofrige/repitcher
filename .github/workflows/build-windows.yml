@@ -1,0 +1,39 @@
+name: Build Windows
+
+# Compila l'installer Windows (NSIS) su un runner Windows nativo — niente Wine.
+# Avvialo a mano da GitHub → Actions → "Build Windows" → Run workflow,
+# oppure automaticamente quando pushi un tag tipo v1.0.0.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Il repo non versiona package-lock.json → usiamo npm install (non npm ci).
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Windows installer (NSIS)
+        run: npm run dist-win
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RePitch-Windows
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+          if-no-files-found: error
+          retention-days: 30

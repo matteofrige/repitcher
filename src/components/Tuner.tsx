@@ -201,105 +201,111 @@ const Tuner: React.FC<TunerProps> = ({ inputDeviceId }) => {
         <div className="tuner-error">{micError}</div>
       )}
 
-      {/* Main display */}
-      <div className="tuner-display">
-        <div className={`tuner-note ${hasSignal ? (inTune ? 'in-tune' : 'out-of-tune') : 'no-signal'}`}>
-          {noteName}{octave !== null ? <span className="tuner-octave">{octave}</span> : null}
-        </div>
-        <div className="tuner-freq">
-          {hasSignal ? displayFreq : 'Play a note'}
-        </div>
-      </div>
-
-      {/* Meter */}
-      <div className="tuner-meter-wrap">
-        <div className="tuner-meter-ticks">
-          {[-50, -25, 0, 25, 50].map((v) => (
-            <span
-              key={v}
-              className="tuner-tick"
-              style={{ left: `${50 + v}%` }}
-            >
-              {v === 0 ? '|' : String(v)}
-            </span>
-          ))}
-        </div>
-        <div className="tuner-meter">
-          <div className="tuner-meter-center" />
-          <div
-            className={`tuner-needle ${inTune && hasSignal ? 'in-tune' : ''}`}
-            style={{
-              left: `${needlePercent}%`,
-              backgroundColor: needleColor,
-              boxShadow: hasSignal ? `0 0 8px 2px ${needleColor}` : 'none',
-            }}
-          />
-        </div>
-        <div className="tuner-meter-labels">
-          <span style={{ color: 'var(--danger)' }}>♭</span>
-          <div className="tuner-meter-status">
-            {hasSignal && (
-              <>
-                <span className={`tuner-cents ${inTune ? 'in-tune' : 'out-of-tune'}`}>{centsDisplay} ¢</span>
-                <span className={`tuner-label ${inTune ? 'in-tune' : 'out-of-tune'}`}>{tuningLabel}</span>
-              </>
-            )}
+      <div className="tuner-2col">
+        <div className="tuner-col">
+          {/* Main display */}
+          <div className="tuner-display">
+            <div className={`tuner-note ${hasSignal ? (inTune ? 'in-tune' : 'out-of-tune') : 'no-signal'}`}>
+              {noteName}{octave !== null ? <span className="tuner-octave">{octave}</span> : null}
+            </div>
+            <div className="tuner-freq">
+              {hasSignal ? displayFreq : 'Play a note'}
+            </div>
           </div>
-          <span style={{ color: 'var(--danger)' }}>♯</span>
-        </div>
-      </div>
 
-      {/* Waveform */}
-      <div className="tuner-wave-wrap">
-        <canvas ref={canvasRef} className="tuner-wave" />
-      </div>
-
-      {/* Controls */}
-      <div className="tuner-controls">
-        {/* Reference Hz slider */}
-        <div className="slider-section">
-          <div className="pitch-display">
-            <div className="pitch-semitones">{referenceHz.toFixed(1)} Hz</div>
-            <div className="pitch-note">{refLabel}</div>
-          </div>
-          <input
-            type="range"
-            min={415}
-            max={466}
-            step={0.5}
-            value={referenceHz}
-            onChange={(e) => setReferenceHz(Number(e.target.value))}
-            className="pitch-slider"
-            aria-label="Reference A frequency (Hz)"
-          />
-          <div className="slider-labels">
-            <span>415</span>
-            <span>440</span>
-            <span>466</span>
+          {/* Meter */}
+          <div className="tuner-meter-wrap">
+            <div className="tuner-meter-ticks">
+              {[-50, -25, 0, 25, 50].map((v) => (
+                <span
+                  key={v}
+                  className="tuner-tick"
+                  style={{ left: `${50 + v}%` }}
+                >
+                  {v === 0 ? '|' : String(v)}
+                </span>
+              ))}
+            </div>
+            <div className="tuner-meter">
+              <div className="tuner-meter-center" />
+              <div
+                className={`tuner-needle ${inTune && hasSignal ? 'in-tune' : ''}`}
+                style={{
+                  left: `${needlePercent}%`,
+                  backgroundColor: needleColor,
+                  boxShadow: hasSignal ? `0 0 8px 2px ${needleColor}` : 'none',
+                }}
+              />
+            </div>
+            <div className="tuner-meter-labels">
+              <span style={{ color: 'var(--danger)' }}>♭</span>
+              <div className="tuner-meter-status">
+                {hasSignal && (
+                  <>
+                    <span className={`tuner-cents ${inTune ? 'in-tune' : 'out-of-tune'}`}>{centsDisplay} ¢</span>
+                    <span className={`tuner-label ${inTune ? 'in-tune' : 'out-of-tune'}`}>{tuningLabel}</span>
+                  </>
+                )}
+              </div>
+              <span style={{ color: 'var(--danger)' }}>♯</span>
+            </div>
           </div>
         </div>
 
-        {/* Target note selector */}
-        <div className="tuner-note-select-wrap">
-          <label className="tuner-note-label" htmlFor="tuner-note-select">
-            Target note
-          </label>
-          <select
-            id="tuner-note-select"
-            className="tuner-note-select"
-            value={targetNote === 'auto' ? 'auto' : String(targetNote)}
-            onChange={(e) => {
-              const v = e.target.value;
-              setTargetNote(v === 'auto' ? 'auto' : Number(v));
-            }}
-          >
-            <option value="auto">Auto (nearest note)</option>
-            {NOTES.map((n, i) => (
-              <option key={n} value={String(i)}>
-                {n}
-              </option>
-            ))}
-          </select>
+        <div className="tuner-col">
+          {/* Waveform */}
+          <div className="tuner-wave-wrap">
+            <canvas ref={canvasRef} className="tuner-wave" />
+          </div>
+
+          {/* Controls */}
+          <div className="tuner-controls">
+            {/* Reference Hz slider */}
+            <div className="slider-section">
+              <div className="pitch-display">
+                <div className="pitch-semitones">{referenceHz.toFixed(1)} Hz</div>
+                <div className="pitch-note">{refLabel}</div>
+              </div>
+              <input
+                type="range"
+                min={415}
+                max={466}
+                step={0.5}
+                value={referenceHz}
+                onChange={(e) => setReferenceHz(Number(e.target.value))}
+                className="pitch-slider"
+                aria-label="Reference A frequency (Hz)"
+              />
+              <div className="slider-labels">
+                <span>415</span>
+                <span>440</span>
+                <span>466</span>
+              </div>
+            </div>
+
+            {/* Target note selector */}
+            <div className="tuner-note-select-wrap">
+              <label className="tuner-note-label" htmlFor="tuner-note-select">
+                Target note
+              </label>
+              <select
+                id="tuner-note-select"
+                className="tuner-note-select"
+                value={targetNote === 'auto' ? 'auto' : String(targetNote)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setTargetNote(v === 'auto' ? 'auto' : Number(v));
+                }}
+              >
+                <option value="auto">Auto (nearest note)</option>
+                {NOTES.map((n, i) => (
+                  <option key={n} value={String(i)}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
     </div>

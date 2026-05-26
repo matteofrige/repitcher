@@ -1,0 +1,36 @@
+.trial-lock {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.trial-lock-card {
+  max-width: 460px;
+  text-align: center;
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 20px;
+  padding: 48px 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.trial-lock-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.trial-lock-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f87171;
+  margin-bottom: 14px;
+}
+
+.trial-lock-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+}

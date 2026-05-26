@@ -1,6 +1,5 @@
 import React from 'react';
 import '../styles/PitchControl.css';
-import Visualizer from './Visualizer';
 
 interface PitchControlProps {
   isRunning: boolean;
@@ -8,7 +7,6 @@ interface PitchControlProps {
   onPitchChange: (semitones: number) => void;
   detuneCents: number;
   onDetuneChange: (cents: number) => void;
-  analyser: AnalyserNode | null;
 }
 
 const PitchControl: React.FC<PitchControlProps> = ({
@@ -17,7 +15,6 @@ const PitchControl: React.FC<PitchControlProps> = ({
   onPitchChange,
   detuneCents,
   onDetuneChange,
-  analyser,
 }) => {
   const getNoteNameFromSemitones = (semitones: number): string => {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -43,9 +40,6 @@ const PitchControl: React.FC<PitchControlProps> = ({
 
   return (
     <div className="pitch-control">
-      {/* Visualizer */}
-      {analyser && isRunning && <Visualizer analyser={analyser} />}
-
       {/* Pitch (semitones) */}
       <div className="slider-section">
         <div className="pitch-display">

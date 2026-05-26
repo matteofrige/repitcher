@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { audioEngine, EngineStatus } from '../audioEngine';
 import PitchControl from './PitchControl';
+import Visualizer from './Visualizer';
 
 /**
  * Pitch-shifter tool. Mounted only while its tab is active; starts the engine
@@ -66,26 +67,38 @@ const PitchShifter: React.FC = () => {
     );
   }, [status.pitchSemitones, status.detuneCents, status.bypassed]);
 
+  const analyser = audioEngine.getAnalyser();
+
   return (
-    <>
-      <div className="status-row">
-        <div className={`status-indicator ${status.running ? 'connected' : 'disconnected'}`}>
-          <div className="status-dot"></div>
-          <span className="status-text">
-            {status.running ? 'Processing system audio' : 'Click anywhere to start'}
-          </span>
-        </div>
-        <button
-          className={`bypass-button ${status.bypassed ? 'active' : ''}`}
-          onClick={() => audioEngine.setBypassed(!status.bypassed)}
-          disabled={!status.running}
-          aria-label={status.bypassed ? 'Enable pitch shifting' : 'Bypass pitch shifting'}
-        >
-          {status.bypassed ? 'BYPASS: ON' : 'BYPASS: OFF'}
-        </button>
+    <div className="pitch-layout">
+      <div className="pitch-visual">
+        {analyser && status.running ? (
+          <Visualizer analyser={analyser} />
+        ) : (
+          <div className="pitch-visual-placeholder">
+            {status.running ? 'Starting…' : 'Click anywhere to start'}
+          </div>
+        )}
       </div>
 
-      <main className="main-content">
+      <div className="pitch-controls-col">
+        <div className="status-row">
+          <div className={`status-indicator ${status.running ? 'connected' : 'disconnected'}`}>
+            <div className="status-dot"></div>
+            <span className="status-text">
+              {status.running ? 'Processing system audio' : 'Click anywhere to start'}
+            </span>
+          </div>
+          <button
+            className={`bypass-button ${status.bypassed ? 'active' : ''}`}
+            onClick={() => audioEngine.setBypassed(!status.bypassed)}
+            disabled={!status.running}
+            aria-label={status.bypassed ? 'Enable pitch shifting' : 'Bypass pitch shifting'}
+          >
+            {status.bypassed ? 'BYPASS: ON' : 'BYPASS: OFF'}
+          </button>
+        </div>
+
         {error && (
           <div className="error-banner">
             <span className="error-icon">⚠</span>
@@ -99,21 +112,20 @@ const PitchShifter: React.FC = () => {
           onPitchChange={(semitones) => audioEngine.setPitchSemitones(semitones)}
           detuneCents={status.detuneCents}
           onDetuneChange={(cents) => audioEngine.setDetuneCents(cents)}
-          analyser={audioEngine.getAnalyser()}
         />
-      </main>
 
-      <footer className="app-footer">
-        <div className="footer-info">
-          <span className="info-label">Sample Rate:</span>
-          <span className="info-value">{status.sampleRate} Hz</span>
-        </div>
-        <div className="footer-info">
-          <span className="info-label">Latency:</span>
-          <span className="info-value">{status.latencyMs || '—'} ms</span>
-        </div>
-      </footer>
-    </>
+        <footer className="app-footer">
+          <div className="footer-info">
+            <span className="info-label">Sample Rate:</span>
+            <span className="info-value">{status.sampleRate} Hz</span>
+          </div>
+          <div className="footer-info">
+            <span className="info-label">Latency:</span>
+            <span className="info-value">{status.latencyMs || '—'} ms</span>
+          </div>
+        </footer>
+      </div>
+    </div>
   );
 };
 

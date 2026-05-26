@@ -155,9 +155,9 @@ function createSplash(): void {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 980,
-    height: 720,
-    minWidth: 760,
+    width: 1000,
+    height: 760,
+    minWidth: 860,
     minHeight: 600,
     title: 'RePitch',
     backgroundColor: '#0b0e14',

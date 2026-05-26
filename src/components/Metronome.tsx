@@ -68,108 +68,114 @@ const Metronome: React.FC<MetronomeProps> = ({ flashEnabled, onFlashToggle }) =>
 
   return (
     <div className="metronome">
-      <div className="metro-bpm-display">
-        <span className="metro-bpm-value">{bpm}</span>
-        <span className="metro-bpm-label">BPM</span>
-      </div>
+      <div className="metro-2col">
+        <div className="metro-col">
+          <div className="metro-bpm-display">
+            <span className="metro-bpm-value">{bpm}</span>
+            <span className="metro-bpm-label">BPM</span>
+          </div>
 
-      <div className="metro-bpm-controls">
-        <button
-          className="metro-nudge"
-          onClick={() => handleBpmChange(bpm - 1)}
-          aria-label="Decrease BPM"
-        >
-          −
-        </button>
-        <input
-          className="metro-slider"
-          type="range"
-          min={40}
-          max={240}
-          step={1}
-          value={bpm}
-          onChange={(e) => handleBpmChange(Number(e.target.value))}
-        />
-        <button
-          className="metro-nudge"
-          onClick={() => handleBpmChange(bpm + 1)}
-          aria-label="Increase BPM"
-        >
-          +
-        </button>
-      </div>
+          <div className="metro-bpm-controls">
+            <button
+              className="metro-nudge"
+              onClick={() => handleBpmChange(bpm - 1)}
+              aria-label="Decrease BPM"
+            >
+              −
+            </button>
+            <input
+              className="metro-slider"
+              type="range"
+              min={40}
+              max={240}
+              step={1}
+              value={bpm}
+              onChange={(e) => handleBpmChange(Number(e.target.value))}
+            />
+            <button
+              className="metro-nudge"
+              onClick={() => handleBpmChange(bpm + 1)}
+              aria-label="Increase BPM"
+            >
+              +
+            </button>
+          </div>
 
-      <div className="metro-bpm-input-row">
-        <input
-          className="metro-bpm-input"
-          type="number"
-          min={40}
-          max={240}
-          value={bpm}
-          onChange={(e) => handleBpmChange(Number(e.target.value))}
-        />
-        <span className="metro-bpm-input-label">BPM</span>
-      </div>
+          <div className="metro-bpm-input-row">
+            <input
+              className="metro-bpm-input"
+              type="number"
+              min={40}
+              max={240}
+              value={bpm}
+              onChange={(e) => handleBpmChange(Number(e.target.value))}
+            />
+            <span className="metro-bpm-input-label">BPM</span>
+          </div>
 
-      <div className="metro-section-label">Beats per bar</div>
-      <div className="beat-options">
-        {BEAT_OPTIONS.map((n) => (
           <button
-            key={n}
-            className={`beat-option${beatsPerBar === n ? ' active' : ''}`}
-            onClick={() => handleBeatsPerBarChange(n)}
+            className={`metro-toggle${isRunning ? ' running' : ''}`}
+            onClick={handleToggle}
           >
-            {n}
+            {isRunning ? 'Stop' : 'Start'}
           </button>
-        ))}
+        </div>
+
+        <div className="metro-col">
+          <div className="metro-section-label">Beats per bar</div>
+          <div className="beat-options">
+            {BEAT_OPTIONS.map((n) => (
+              <button
+                key={n}
+                className={`beat-option${beatsPerBar === n ? ' active' : ''}`}
+                onClick={() => handleBeatsPerBarChange(n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+
+          <div className="beat-lights">
+            {Array.from({ length: beatsPerBar }, (_, i) => (
+              <div
+                key={i}
+                className={[
+                  'beat-light',
+                  i === 0 ? 'accent' : '',
+                  i === activeBeat ? 'active' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              />
+            ))}
+          </div>
+
+          <div className="metro-section-label">Volume {volume}%</div>
+          <div className="metro-volume-row">
+            <span className="metro-volume-icon">🔈</span>
+            <input
+              className="metro-slider"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={volume}
+              onChange={(e) => handleVolumeChange(Number(e.target.value))}
+              aria-label="Volume del click"
+            />
+            <span className="metro-volume-icon">🔊</span>
+          </div>
+
+          <label className="metro-flash">
+            <input
+              type="checkbox"
+              checked={flashEnabled}
+              onChange={(e) => onFlashToggle(e.target.checked)}
+            />
+            <span>Flash screen on beat</span>
+          </label>
+        </div>
       </div>
-
-      <div className="beat-lights">
-        {Array.from({ length: beatsPerBar }, (_, i) => (
-          <div
-            key={i}
-            className={[
-              'beat-light',
-              i === 0 ? 'accent' : '',
-              i === activeBeat ? 'active' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          />
-        ))}
-      </div>
-
-      <div className="metro-section-label">Volume {volume}%</div>
-      <div className="metro-volume-row">
-        <span className="metro-volume-icon">🔈</span>
-        <input
-          className="metro-slider"
-          type="range"
-          min={0}
-          max={100}
-          step={1}
-          value={volume}
-          onChange={(e) => handleVolumeChange(Number(e.target.value))}
-          aria-label="Volume del click"
-        />
-        <span className="metro-volume-icon">🔊</span>
-      </div>
-
-      <button
-        className={`metro-toggle${isRunning ? ' running' : ''}`}
-        onClick={handleToggle}
-      >
-        {isRunning ? 'Stop' : 'Start'}
-      </button>
-
-      <label className="metro-flash">
-        <input
-          type="checkbox"
-          checked={flashEnabled}
-          onChange={(e) => onFlashToggle(e.target.checked)}
-        />
-        <span>Flash screen on beat</span>
-      </label>
     </div>
   );
 };

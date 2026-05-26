@@ -1,7 +1,8 @@
 .settings {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
 .settings-section {
@@ -159,3 +160,35 @@
   font-family: var(--font-mono, monospace);
   margin-top: 4px;
 }
+
+/* ── TRIAL START (rimuovere col serial) ── */
+.settings-trial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+}
+.settings-trial-days {
+  font-size: 2.4rem;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  background: linear-gradient(135deg, #64b5f6, #81c784);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+.settings-trial-label {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.settings-trial-expiry {
+  font-size: 0.8rem;
+  color: #6b748a;
+  font-family: var(--font-mono, monospace);
+  margin-top: 4px;
+}
+/* ── TRIAL END ── */
