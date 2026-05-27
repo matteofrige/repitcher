@@ -4,79 +4,63 @@ A native macOS Electron app for real-time pitch shifting of system audio (Spotif
 
 ## Features
 
-- 🎵 **Real-time Pitch Shifting**: Adjust pitch from -12 to +12 semitones
-- 🚀 **Zero Latency (mostly)**: Uses Web Audio API + Tone.js for low-latency processing
-- 🎛️ **Quick Presets**: Standard, Capo 1-6, and semitone shifts
-- 📊 **Live Visualizer**: Real-time frequency spectrum + waveform display
-- 🔇 **Bypass Control**: Toggle processing on/off with a button
-- 💅 **Beautiful Dark UI**: Modern, minimalist macOS design
-- 🔒 **Safe & Private**: All processing happens locally, no network access
+- Real-time Pitch Shifting: Adjust pitch from -12 to +12 semitones
+- Zero Latency (mostly): Uses Web Audio API + Signalsmith WASM for low-latency processing
+- Quick Presets: Standard, Capo 1-6, and semitone shifts
+- Live Visualizer: Real-time frequency spectrum + waveform display
+- Bypass Control: Toggle processing on/off with a button
+- Built-in Chromatic Tuner: Uses the microphone selected in Settings (mutually exclusive with pitch shifting)
+- Beautiful Dark UI: Modern, minimalist design
+- Safe & Private: All processing happens locally, no network access
 
 ## System Requirements
 
-- **macOS 11+** (Big Sur or later)
-- **Apple Silicon or Intel** (native universal binary)
-- **Microphone Permission** (required by the system)
-- **BlackHole Audio Driver** (free loopback device)
+### macOS
+- **macOS 14.2 or later** (Sonoma 14.2+) — required for Core Audio process taps
+- Apple Silicon or Intel (native universal binary)
+- **No third-party drivers required**
+
+### Windows
+- Windows 10/11
+- **VB-CABLE** virtual audio device (free) — set as system audio output
+
+### Linux
+- PulseAudio or PipeWire
+- A **Monitor** loopback source configured as the capture device
 
 ## Installation
 
-### 1. Install BlackHole (One-Time Setup)
+### macOS
 
-BlackHole is a free, open-source loopback audio device. This is required for RePitch to intercept system audio.
+1. Download `RePitch.dmg` from the latest GitHub release (or build from source).
+2. Open the DMG, drag **RePitch** to Applications, and launch it.
+3. On first launch macOS will ask for **microphone / audio recording permission** — grant it. This is required for the Core Audio tap to capture system audio.
+4. That's it. No BlackHole, no Multi-Output Device, no restart needed.
 
-**Download & Install:**
-- Visit [existential.audio/blackhole](https://existential.audio/blackhole/)
-- Download the latest `.pkg` installer
-- Run the installer and follow the prompts
-- **Restart your Mac** (required)
+> **Note**: macOS 14.2+ is required. The app uses the Core Audio "process tap" API (introduced in 14.2) via a small included native binary (`audiotee`) to capture system audio without a loopback driver.
 
-**Verify Installation:**
+### Windows
+
+1. Install **VB-CABLE** from [vb-audio.com/Cable](https://vb-audio.com/Cable/) and restart.
+2. Set **CABLE Input** as your default audio output in Sound settings.
+3. Launch RePitch — it will capture from CABLE Output automatically.
+
+### Linux
+
+1. Identify your monitor source with `pactl list sources` (PulseAudio) or `pw-cli ls Node` (PipeWire).
+2. In RePitch Settings, select the Monitor source as the input device.
+
+### Build from Source
+
 ```bash
-# List audio devices
-system_profiler SPAudioDataType | grep -i blackhole
-```
-
-### 2. Create a Multi-Output Device (Optional but Recommended)
-
-This allows audio to play through both BlackHole (for RePitch) and your speakers simultaneously.
-
-1. Open **Audio MIDI Setup** (Spotlight → "Audio MIDI Setup")
-2. Click the **"+"** button at the bottom → "Create Multi-Output Device"
-3. Check both:
-   - Your speaker output device
-   - **BlackHole 2ch**
-4. Rename it to "RePitch Output" (optional)
-5. Set it as your default output in System Settings > Sound
-
-### 3. Install & Run RePitch
-
-**Download the DMG:**
-```bash
-# Download the latest release from GitHub
-# Or build from source (see below)
-```
-
-**From DMG:**
-1. Download `RePitch-1.0.0.dmg`
-2. Open the DMG
-3. Drag **RePitch** to the **Applications** folder
-4. Eject the DMG
-5. Launch RePitch from Applications
-
-**From Source:**
-```bash
-# Clone the repository
 git clone <repo-url>
 cd repitch
-
-# Install dependencies
 npm install
 
-# For development
+# Development
 npm run dev
 
-# For production build
+# Production DMG (macOS)
 npm run build-dmg
 ```
 
@@ -85,90 +69,145 @@ npm run build-dmg
 ### Basic Workflow
 
 1. **Launch RePitch**
-   - The app will auto-detect BlackHole if installed
-   - You'll see "Connected to BlackHole 2ch" in the status bar
+   - On macOS the pitch shifter starts automatically; system audio is muted at the OS level and re-emitted pitch-shifted through your selected output.
+   - On Windows/Linux ensure your loopback device is set as system output before launching.
 
-2. **Enable Processing**
-   - Click the large circular **ON button** (top center)
-   - The button will pulse when active
+2. **Adjust Pitch**
+   - Use the **slider** to shift pitch (-12 to +12 semitones).
+   - Real-time preview on speakers.
+   - Visualizer shows live frequency spectrum.
 
-3. **Adjust Pitch**
-   - Use the **slider** to shift pitch (-12 to +12 semitones)
-   - Real-time preview on speakers
-   - Visualizer shows live frequency spectrum
+3. **Use Presets** (Optional)
+   - Click **"Standard"** to reset to 0 semitones.
+   - Click **"Capo 1-6"** for quick musical shifts.
+   - Click **"-1, -2, -3 Semitones"** for downward shifts.
 
-4. **Use Presets** (Optional)
-   - Click **"Standard"** to reset to 0 semitones
-   - Click **"Capo 1-6"** for quick musical shifts
-   - Click **"-1, -2, -3 Semitones"** for downward shifts
+4. **Bypass Processing**
+   - Click **"BYPASS: OFF"** to temporarily disable pitch shifting.
+   - Useful for quick A/B comparison.
 
-5. **Bypass Processing**
-   - Click **"BYPASS: OFF"** to temporarily disable pitch shifting
-   - Useful for testing or quick A/B comparison
+5. **Tuner**
+   - Switch to the Tuner tab to use the built-in chromatic tuner.
+   - Pitch shifting stops while the tuner is active.
+   - The tuner captures from the microphone selected in Settings.
 
-### Settings Audio Routing
+### Settings
 
-**For Music + System Audio:**
-1. System Settings > Sound > Output
-2. Select your **"RePitch Output"** device
-3. Now all system audio flows through BlackHole → RePitch → Speakers
-
-**For Single Application Only:**
-- Option-click the volume icon in the menu bar
-- Select the app, then choose BlackHole 2ch as its output device
+- **Output device**: where pitched audio is sent (your speakers or headphones).
+- **Microphone** (Tuner input): only relevant when using the Tuner tab.
 
 ## Troubleshooting
 
-### "No BlackHole device found"
-- BlackHole is not installed or not recognized
-- **Solution**: Download and install BlackHole from [existential.audio/blackhole](https://existential.audio/blackhole/)
-- **After install**, restart your Mac completely
+### macOS: no pitched audio
 
-### "Connection failed" / "Microphone permission denied"
-- macOS is blocking microphone access
-- **Solution**: 
-  1. System Settings > Privacy & Security > Microphone
-  2. Add **RePitch** to the list
-  3. Restart RePitch
+- Check that RePitch has the **audio recording permission**: System Settings > Privacy & Security > Microphone — RePitch must be listed and enabled.
+- If the permission was denied at first launch, revoke and re-grant it, then restart the app.
 
-### No sound coming through
-- Audio routing not configured correctly
-- **Solution**:
-  1. Open **Audio MIDI Setup** (Spotlight → search)
-  2. Check that BlackHole 2ch is selected in your Multi-Output Device
-  3. Set that device as your system output in Sound settings
+### macOS: permission dialog never appeared
 
-### Latency or audio dropouts
-- Typically indicates buffer issues
-- **Solution**:
-  1. Try closing other audio apps (Spotify, Discord, etc.)
-  2. Restart RePitch
-  3. Check that your Mac's system load is not high (Activity Monitor)
+- Quit RePitch, open Terminal and run:
+  ```bash
+  tccutil reset Microphone com.repitch.app
+  ```
+  Then re-launch RePitch.
 
-### Audio is very quiet or distorted
-- Input/output levels may be misaligned
-- **Solution**:
-  1. Open **Audio MIDI Setup**
-  2. Click BlackHole 2ch input
-  3. Ensure input level slider is in the middle (not maxed)
+### Windows: no audio or wrong source
+
+- Make sure **CABLE Input** (VB-CABLE) is selected as the default playback device in Windows Sound settings.
+- Confirm **CABLE Output** is what RePitch is capturing (check the input selector in Settings).
+
+### Linux: no audio or wrong source
+
+- Select the correct **Monitor** source in RePitch Settings (it must correspond to the sink your apps are playing to).
+
+### Latency or audio dropouts (all platforms)
+
+- Close other audio-intensive apps.
+- Restart RePitch.
+- Check CPU load in Activity Monitor / Task Manager.
+
+### Audio is distorted
+
+- Reduce the pitch shift amount and check that your system output volume is not at 100% before reaching RePitch.
+
+## Architecture
+
+### Signal Path
+
+**macOS:**
+```
+System audio
+    ↓
+audiotee (Core Audio process tap — system audio muted at source)
+    ↓
+PCM samples via IPC
+    ↓
+AudioWorklet ring buffer
+    ↓
+Signalsmith pitch shifter (WASM)
+    ↓
+setSinkId → physical output (speakers/headphones)
+```
+
+**Windows / Linux:**
+```
+Loopback device (VB-CABLE Output / PulseAudio Monitor)
+    ↓
+getUserMedia
+    ↓
+Signalsmith pitch shifter (WASM)
+    ↓
+setSinkId → physical output (speakers/headphones)
+```
+
+### Key Technologies
+
+- **Electron**: Cross-platform desktop shell
+- **React 18**: UI framework
+- **Signalsmith Stretch (WASM)**: Pitch shifting without tempo change
+- **Core Audio process tap** (macOS): system-level audio capture via `audiotee` native binary
+- **electron-builder**: DMG/installer packaging
+
+### Project Structure
+
+```
+repitch/
+├── src/
+│   ├── App.tsx                 # Main React component
+│   ├── index.tsx               # React entry point
+│   ├── audioEngine.ts          # Audio processing
+│   ├── presets.ts              # Preset configurations
+│   ├── components/
+│   │   ├── PitchControl.tsx    # Pitch slider + controls
+│   │   ├── PresetButtons.tsx   # Preset button grid
+│   │   └── Visualizer.tsx      # Frequency visualizer
+│   ├── electron/
+│   │   ├── main.ts             # Electron main process
+│   │   └── preload.ts          # IPC bridge (security)
+│   └── styles/
+├── public/
+│   └── index.html
+├── resources/
+│   └── audiotee                # Native binary (macOS Core Audio tap)
+├── package.json
+└── README.md
+```
 
 ## Development
 
 ### Prerequisites
-- Node.js 16+ (use `nvm` or Homebrew)
-- npm or yarn
+
+- Node.js 18+ (use `nvm` or Homebrew)
+- npm
 - Git
+- macOS 14.2+ (for macOS-specific features)
 
 ### Setup
 
 ```bash
-# Clone and install
 git clone <repo-url>
 cd repitch
 npm install
-
-# Install Tone.js and other dependencies
-npm install tone --save
 
 # Start development server
 npm run dev
@@ -185,65 +224,11 @@ npm run dev
 # Build the React app + package as DMG
 npm run build-dmg
 
-# Output will be in: dist/RePitch-1.0.0.dmg
-
 # Or just build the app (no DMG)
 npm run build
 ```
 
-### Project Structure
-
-```
-repitch/
-├── src/
-│   ├── App.tsx                 # Main React component
-│   ├── index.tsx               # React entry point
-│   ├── audioEngine.ts          # Tone.js audio processing
-│   ├── presets.ts              # Preset configurations
-│   ├── components/
-│   │   ├── PitchControl.tsx    # Pitch slider + controls
-│   │   ├── PresetButtons.tsx   # Preset button grid
-│   │   └── Visualizer.tsx      # Frequency visualizer
-│   ├── electron/
-│   │   ├── main.ts             # Electron main process
-│   │   └── preload.ts          # IPC bridge (security)
-│   └── styles/
-│       ├── App.css
-│       ├── PitchControl.css
-│       ├── PresetButtons.css
-│       └── Visualizer.css
-├── public/
-│   ├── index.html
-│   └── manifest.json
-├── package.json                # Dependencies + scripts
-└── README.md
-```
-
-### Key Dependencies
-
-- **Electron 27+**: Cross-platform desktop app
-- **React 18**: UI framework
-- **Tone.js 14+**: Audio processing (pitch shifting)
-- **electron-builder**: DMG packaging
-
-### Architecture
-
-**Signal Path:**
-```
-BlackHole Input (getUserMedia)
-    ↓
-Tone.PitchShift (no tempo change)
-    ↓
-AnalyserNode (visualizer)
-    ↓
-System Output (speakers/headphones)
-```
-
-**Key Features:**
-- **Pitch Preservation**: FFmpeg-style time-stretching (via Tone.js)
-- **Real-time**: ~50-200ms latency (depending on system)
-- **Bypass Crossfade**: Smooth 30ms fade between dry/wet
-- **No Artifacts**: AGC/echo cancellation disabled for clean audio
+See `DEVELOPMENT.md` for more details on the development workflow and architecture.
 
 ## Advanced Configuration
 
@@ -251,7 +236,6 @@ System Output (speakers/headphones)
 
 Edit `src/audioEngine.ts`:
 ```typescript
-// Change these values to expand/contract range
 const MIN_SEMITONES = -24;
 const MAX_SEMITONES = 24;
 ```
@@ -264,44 +248,40 @@ Edit `src/styles/App.css` and update CSS variables:
 --success: #81c784; /* Active button color */
 ```
 
-### Performance Tuning
-
-In `src/audioEngine.ts`, adjust the pitch shifter:
-```typescript
-const pitch = new Tone.PitchShift({
-  windowSize: 0.1,  // Increase for higher quality, higher latency
-  feedback: 0,      // Feedback amount (0 = clean)
-  wet: 1,           // Mix (1 = 100% processed)
-});
-```
-
 ## Uninstallation
 
 ```bash
 # Remove the app
 rm -rf /Applications/RePitch.app
-
-# Optional: Uninstall BlackHole
-# (if you don't use it with other apps)
-# Restart your Mac after removal
 ```
+
+No driver or virtual device was installed on macOS, so nothing else to remove.
 
 ## FAQ
 
-**Q: Will this work with all audio apps?**  
-A: Yes, if you route system audio through BlackHole. All audio goes through the same OS audio layer.
+**Q: Do I need to install BlackHole or any other audio driver on macOS?**
+No. RePitch captures system audio natively using the Core Audio process tap API. No third-party drivers are needed.
 
-**Q: Is there a Windows version?**  
-A: Not currently. The app uses macOS-specific audio APIs. A Windows/Linux port would require a complete rewrite using ASIO/ALSA.
+**Q: Why does macOS ask for microphone permission?**
+The Core Audio process tap API requires the audio recording entitlement. No actual microphone audio is captured during pitch shifting — only system audio playback. The microphone is only used by the built-in Tuner.
 
-**Q: Can I use this for live performances?**  
-A: Yes, but test latency first. Typical latency is 50-100ms. For very low latency, reduce the `windowSize` parameter in `audioEngine.ts`.
+**Q: Will this work with all audio apps on macOS?**
+Yes. The process tap operates at the system audio level, so it captures audio from all apps regardless of which output device they use.
 
-**Q: Is my audio data private?**  
-A: Completely. All processing happens locally on your Mac. The app does not send audio to any servers.
+**Q: Is there a Windows version?**
+Yes. On Windows, RePitch uses VB-CABLE as a loopback device. See the Installation section.
 
-**Q: Can I pitch-shift while preserving tempo?**  
-A: Yes, that's what RePitch does by default! Tone.js handles this automatically.
+**Q: Can I use this for live performances?**
+Yes, but test latency first. Typical latency is 50-150ms. For lower latency, reduce the buffer size in Settings.
+
+**Q: Is my audio data private?**
+Completely. All processing happens locally. The app does not send audio to any servers.
+
+**Q: Can I pitch-shift while preserving tempo?**
+Yes, that is what RePitch does by default. Signalsmith Stretch handles pitch shifting independently of tempo.
+
+**Q: What is the Tuner and can I use it at the same time as pitch shifting?**
+The Tuner is a built-in chromatic tuner that uses your selected microphone. Pitch shifting and the Tuner are mutually exclusive — switching to the Tuner pauses pitch processing, and switching back resumes it.
 
 ## License
 
@@ -310,15 +290,14 @@ MIT License — See LICENSE file for details
 ## Support
 
 - **Issues**: GitHub Issues
-- **Documentation**: See `BlackHole` docs at [existential.audio](https://existential.audio/blackhole/)
-- **Tone.js Reference**: [tonejs.org](https://tonejs.org/)
 
 ## Credits
 
-- **BlackHole Audio**: Open-source loopback audio driver by Existential Audio
-- **Tone.js**: Web Audio API library by Yotam Mann
+- **Signalsmith Stretch**: High-quality pitch/time library by Signalsmith Audio
+- **audiotee**: Core Audio process tap binary for system audio capture (macOS)
 - **Electron**: Cross-platform app framework by GitHub
+- **VB-CABLE**: Virtual audio cable by VB-Audio Software (Windows)
 
 ---
 
-**Enjoy beautiful pitch shifting!** 🎵✨
+Enjoy beautiful pitch shifting!

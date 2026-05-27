@@ -54,3 +54,6 @@ wasm/signalsmith-stretch/
 wasm/signalsmith-linear/
 wasm/stretch-module.js
 public/signalsmith-worklet.js
+
+# Claude Code local state
+.claude/
