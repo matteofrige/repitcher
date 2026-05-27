@@ -206,6 +206,42 @@ canvas,
   padding: 0 16px;
 }
 
+/* Compact power button inside the status-row */
+.status-row .power-button {
+  width: auto;
+  height: auto;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(71, 85, 105, 0.4);
+  color: #94a3b8;
+  box-shadow: none;
+  transform: none;
+}
+
+.status-row .power-button:hover {
+  border-color: rgba(100, 181, 246, 0.5);
+  color: #e2e8f0;
+  transform: none;
+  box-shadow: none;
+}
+
+.status-row .power-button.on,
+.status-row .power-button.active {
+  background: rgba(129, 199, 132, 0.12);
+  border-color: rgba(129, 199, 132, 0.5);
+  color: #81c784;
+  box-shadow: none;
+}
+
+.status-row .power-button.off {
+  background: rgba(15, 23, 42, 0.5);
+  border-color: rgba(71, 85, 105, 0.4);
+  color: #94a3b8;
+}
+
 .status-indicator {
   display: flex;
   align-items: center;

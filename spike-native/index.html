@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>spike-native — audiotee test</title>
+  <style>
+    /* ---- Reset e tema scuro ---- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      color: #e0e0e0;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 20px;
+    }
+    h1 { font-size: 18px; color: #aaa; margin-bottom: 6px; }
+    h2 { font-size: 13px; color: #888; margin-bottom: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ---- Layout a blocchi ---- */
+    .block {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    /* ---- Config header ---- */
+    #config-bar {
+      background: #1e2030;
+      border: 1px solid #3a4060;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 30px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #config-bar span { font-size: 14px; }
+    .label-key { color: #888; }
+    .label-val { color: #7dd3fc; font-weight: bold; }
+
+    /* ---- Controlli ---- */
+    select, button {
+      background: #2a2a2a;
+      color: #e0e0e0;
+      border: 1px solid #555;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-top: 4px;
+    }
+    select { min-width: 280px; }
+    button:hover { background: #383838; border-color: #888; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.active { background: #1a3a1a; border-color: #4ade80; color: #4ade80; }
+
+    /* ---- Readout numerico ---- */
+    #readout {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric-label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 6px; }
+    .metric-value { font-size: 28px; font-weight: bold; color: #f0f0f0; font-variant-numeric: tabular-nums; }
+
+    /* ---- Banner verdetto ---- */
+    #verdict {
+      border-radius: 8px;
+      padding: 18px 20px;
+      font-size: 17px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 14px;
+      transition: background 0.3s, color 0.3s;
+      line-height: 1.4;
+    }
+    #verdict.neutral  { background: #2a2a2a; color: #888;    border: 1px solid #444; }
+    #verdict.good     { background: #0d2e1a; color: #4ade80; border: 1px solid #4ade80; }
+    #verdict.bad      { background: #2e0d0d; color: #f87171; border: 1px solid #f87171; }
+    #verdict.warn     { background: #2a1f0d; color: #fbbf24; border: 1px solid #fbbf24; }
+
+    /* ---- Istruzioni protocollo ---- */
+    #instructions ol { padding-left: 22px; }
+    #instructions li { margin-bottom: 8px; color: #bbb; }
+    #instructions strong { color: #e0e0e0; }
+
+    /* ---- Errori visibili a schermo ---- */
+    #error-box {
+      display: none;
+      background: #2e1010;
+      border: 1px solid #c53030;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #fc8181;
+      margin-bottom: 14px;
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Config attuale letta dalla query string passata dal main process -->
+  <div id="config-bar">
+    <span>
+      <span class="label-key">Esclusione PID RePitch: </span>
+      <span class="label-val" id="cfg-exclude">—</span>
+    </span>
+    <span>
+      <span class="label-key">Mute originale: </span>
+      <span class="label-val" id="cfg-mute">—</span>
+    </span>
+  </div>
+
+  <!-- Errori visibili (non solo console) -->
+  <div id="error-box"></div>
+
+  <!-- Selezione dispositivo di output per il tono -->
+  <div class="block">
+    <h2>Dispositivo di Output (dove esce il tono 440 Hz)</h2>
+    <select id="output"><option value="">— seleziona device —</option></select>
+    <button id="btn-refresh">Aggiorna device</button>
+  </div>
+
+  <!-- Controlli principali nell'ordine del protocollo -->
+  <div class="block">
+    <h2>Controlli — segui l'ordine 1 → 2</h2>
+    <!--
+      1) Tono PRIMA: fa nascere il processo audio Chromium, che poi viene escluso.
+      2) Cattura DOPO: così i PID dell'audio service esistono già quando si costruisce la lista excludeProcesses.
+    -->
+    <button id="btn-tone">1) Suona tono 440 Hz</button>
+    <button id="btn-start-capture">2) Avvia cattura nativa</button>
+    <button id="btn-stop-capture" disabled>Ferma cattura</button>
+  </div>
+
+  <!-- Readout numerico in tempo reale -->
+  <div id="readout">
+    <div class="metric">
+      <div class="metric-label">RMS catturato</div>
+      <div class="metric-value" id="val-rms">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Tono 440 Hz</div>
+      <div class="metric-value" id="val-tone">OFF</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Cattura</div>
+      <div class="metric-value" id="val-capture">ferma</div>
+    </div>
+  </div>
+
+  <!-- Banner verdetto grande mode-aware -->
+  <div id="verdict" class="neutral">
+    Avvia il tono, poi la cattura
+  </div>
+
+  <!-- Protocollo di test -->
+  <div class="block" id="instructions">
+    <h2>Protocollo di Test</h2>
+    <ol>
+      <li>
+        <strong>A) Seleziona output.</strong>
+        Premi <strong>"1) Suona tono 440 Hz"</strong> — devi sentirlo.
+        Questo fa nascere il processo audio Chromium.
+      </li>
+      <li>
+        <strong>B) Premi "2) Avvia cattura nativa"</strong> con SOLO il tono in riproduzione (niente Spotify).
+        <br>
+        Con <strong>Esclusione ON</strong>: RMS deve restare ~0 (tono escluso dal tap → no Larsen).
+        <br>
+        Con <strong>Esclusione OFF</strong>: RMS sale (recapture — il problema che vogliamo evitare).
+      </li>
+      <li>
+        <strong>C) Avvia Spotify / YouTube:</strong> "RMS catturato" deve salire (il tap cattura il sistema).
+        Con <strong>Mute ON</strong> non devi sentire Spotify dagli altoparlanti (mute funziona).
+        Il tono invece rimane udibile perché escluso dal tap.
+      </li>
+    </ol>
+  </div>
+
+  <script>
+    // ---- Requisiti IPC (nodeIntegration attivo) ----
+    const { ipcRenderer } = require('electron');
+
+    // ---- Soglia RMS per considerare "audio presente" ----
+    const RMS_THRESHOLD = 0.02;
+
+    // ---- Leggi config dalla query string ----
+    const params     = new URLSearchParams(window.location.search);
+    const isExclude  = params.get('exclude') === '1';
+    const isMute     = params.get('mute')    === '1';
+    document.getElementById('cfg-exclude').textContent = isExclude ? 'ON' : 'OFF';
+    document.getElementById('cfg-mute').textContent    = isMute    ? 'ON' : 'OFF';
+
+    // ---- Riferimenti DOM ----
+    const outputSelect    = document.getElementById('output');
+    const btnRefresh      = document.getElementById('btn-refresh');
+    const btnTone         = document.getElementById('btn-tone');
+    const btnStartCapture = document.getElementById('btn-start-capture');
+    const btnStopCapture  = document.getElementById('btn-stop-capture');
+    const valRmsEl        = document.getElementById('val-rms');
+    const valToneEl       = document.getElementById('val-tone');
+    const valCaptureEl    = document.getElementById('val-capture');
+    const verdictEl       = document.getElementById('verdict');
+    const errorBox        = document.getElementById('error-box');
+
+    // ---- Stato runtime ----
+    let toneActive    = false;
+    let captureActive = false;
+    let lastRms       = 0;
+
+    // Oggetti del tono (vanno tenuti fuori dallo scope di startTone per poterli fermare)
+    let toneCtx       = null;
+    let oscillator    = null;
+    let toneAudioEl   = null;
+
+    // ---- Utilità: errori ----
+    function showError(msg) {
+      errorBox.style.display = 'block';
+      errorBox.textContent   = 'ERRORE: ' + msg;
+      console.error('[spike-native]', msg);
+    }
+    function clearError() {
+      errorBox.style.display = 'none';
+      errorBox.textContent   = '';
+    }
+
+    // ---- Enumerazione device di output ----
+    // Le label compaiono solo dopo il probe getUserMedia; lo eseguiamo qui e lo fermiamo subito.
+    async function refreshDevices() {
+      try {
+        clearError();
+        // Probe permesso audio (ottiene le label, poi ferma subito lo stream)
+        const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+        probe.getTracks().forEach(t => t.stop());
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+
+        outputSelect.innerHTML = '<option value="">— seleziona device —</option>';
+        outputs.forEach(d => {
+          const opt       = document.createElement('option');
+          opt.value       = d.deviceId;
+          opt.textContent = d.label || `Device ${d.deviceId.slice(0, 8)}`;
+          outputSelect.appendChild(opt);
+        });
+      } catch (err) {
+        showError('Enumerazione device fallita: ' + err.message);
+      }
+    }
+
+    btnRefresh.addEventListener('click', refreshDevices);
+    refreshDevices(); // enumerazione all'avvio
+
+    // ---- 1) Toggle tono 440 Hz ----
+    btnTone.addEventListener('click', async () => {
+      if (!toneActive) {
+        await startTone();
+      } else {
+        stopTone();
+      }
+    });
+
+    async function startTone() {
+      try {
+        clearError();
+
+        // AudioContext separato per il tono (non interferisce con la cattura nativa)
+        toneCtx                  = new AudioContext();
+        oscillator               = toneCtx.createOscillator();
+        oscillator.type          = 'sine';
+        oscillator.frequency.setValueAtTime(440, toneCtx.currentTime);
+
+        const gainNode           = toneCtx.createGain();
+        gainNode.gain.setValueAtTime(0.2, toneCtx.currentTime);
+
+        // Destination come MediaStream → setSinkId su elemento <audio>
+        const destNode           = toneCtx.createMediaStreamDestination();
+        oscillator.connect(gainNode);
+        gainNode.connect(destNode);
+
+        // Rimuovi eventuale elemento precedente
+        if (toneAudioEl) { toneAudioEl.remove(); }
+        toneAudioEl              = document.createElement('audio');
+        toneAudioEl.autoplay     = true;
+        toneAudioEl.srcObject    = destNode.stream;
+        document.body.appendChild(toneAudioEl);
+
+        const selectedDevice     = outputSelect.value;
+        if (selectedDevice) {
+          await toneAudioEl.setSinkId(selectedDevice);
+        }
+
+        await toneAudioEl.play();
+        oscillator.start();
+
+        toneActive = true;
+        valToneEl.textContent  = 'ON';
+        btnTone.textContent    = '1) Ferma tono 440 Hz';
+        btnTone.classList.add('active');
+        updateVerdict();
+      } catch (err) {
+        showError('Avvio tono fallito: ' + err.message);
+      }
+    }
+
+    function stopTone() {
+      try {
+        if (oscillator)  { oscillator.stop(); oscillator = null; }
+        if (toneCtx)     { toneCtx.close();   toneCtx   = null; }
+        if (toneAudioEl) {
+          toneAudioEl.pause();
+          toneAudioEl.srcObject = null;
+          toneAudioEl.remove();
+          toneAudioEl = null;
+        }
+      } catch (_) {}
+
+      toneActive            = false;
+      valToneEl.textContent = 'OFF';
+      btnTone.textContent   = '1) Suona tono 440 Hz';
+      btnTone.classList.remove('active');
+      updateVerdict();
+    }
+
+    // ---- 2) Avvia cattura nativa (da premere DOPO aver acceso il tono almeno una volta) ----
+    btnStartCapture.addEventListener('click', async () => {
+      try {
+        clearError();
+        btnStartCapture.disabled = true;
+        btnStartCapture.textContent = '...avvio...';
+
+        const result = await ipcRenderer.invoke('start-capture');
+
+        if (result.ok) {
+          captureActive = true;
+          valCaptureEl.textContent       = 'attiva';
+          btnStartCapture.textContent    = '2) Cattura attiva';
+          btnStartCapture.classList.add('active');
+          btnStopCapture.disabled        = false;
+          console.log(`[spike-native] cattura avviata — ${result.excludeCount} PID esclusi`);
+          updateVerdict();
+        } else {
+          showError('start-capture fallito: ' + result.error);
+          btnStartCapture.disabled    = false;
+          btnStartCapture.textContent = '2) Avvia cattura nativa';
+        }
+      } catch (err) {
+        showError('Invocazione IPC fallita: ' + err.message);
+        btnStartCapture.disabled    = false;
+        btnStartCapture.textContent = '2) Avvia cattura nativa';
+      }
+    });
+
+    // ---- Ferma cattura ----
+    btnStopCapture.addEventListener('click', async () => {
+      try {
+        await ipcRenderer.invoke('stop-capture');
+      } catch (err) {
+        showError('stop-capture fallito: ' + err.message);
+      }
+
+      captureActive = false;
+      lastRms       = 0;
+
+      valCaptureEl.textContent       = 'ferma';
+      valRmsEl.textContent           = '—';
+      btnStopCapture.disabled        = true;
+      btnStartCapture.disabled       = false;
+      btnStartCapture.textContent    = '2) Avvia cattura nativa';
+      btnStartCapture.classList.remove('active');
+      updateVerdict();
+    });
+
+    // ---- Ricevi RMS dal main process ----
+    ipcRenderer.on('rms', (event, rms) => {
+      lastRms              = rms;
+      valRmsEl.textContent = rms.toFixed(4);
+      updateVerdict();
+    });
+
+    // ---- Aggiorna banner verdetto (mode-aware) ----
+    function updateVerdict() {
+      if (!captureActive) {
+        // Cattura ferma
+        verdictEl.className   = 'neutral';
+        verdictEl.textContent = 'Avvia il tono, poi la cattura';
+        return;
+      }
+
+      if (!toneActive) {
+        // Cattura attiva ma tono spento: mostra solo RMS
+        verdictEl.className   = 'neutral';
+        verdictEl.textContent = 'Cattura attiva — accendi il tono per il test Larsen';
+        return;
+      }
+
+      if (isExclude) {
+        // Modalita' con esclusione PID
+        if (lastRms < RMS_THRESHOLD) {
+          verdictEl.className   = 'good';
+          verdictEl.textContent = '✓ Esclusione funziona — il tono NON rientra nel tap (no Larsen)';
+        } else {
+          verdictEl.className   = 'bad';
+          verdictEl.textContent = '✗ Esclusione NON efficace — tono ancora catturato (Larsen)';
+        }
+      } else {
+        // Modalita' controllo senza esclusione: recapture e' attesa
+        verdictEl.className   = 'warn';
+        verdictEl.textContent = 'Modalità controllo (no esclusione): RMS alto = recapture atteso. RMS attuale mostrato sopra';
+      }
+    }
+  </script>
+</body>
+</html>

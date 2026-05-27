@@ -29,6 +29,11 @@ export interface RePitchAPI {
   downloadUpdate: (url: string) => Promise<string>;
   onUpdateAvailable: (cb: (info: UpdateInfo) => void) => () => void;
   onUpdateProgress: (cb: (progress: number) => void) => () => void;
+  // macOS native audio capture
+  platform: NodeJS.Platform;
+  startCapture: () => Promise<{ ok: boolean; pid?: number | null; error?: string }>;
+  stopCapture: () => Promise<boolean>;
+  onPcm: (cb: (chunk: Uint8Array) => void) => () => void;
 }
 
 const api: RePitchAPI = {
@@ -50,6 +55,15 @@ const api: RePitchAPI = {
     const h = (_e: unknown, progress: number) => cb(progress);
     ipcRenderer.on('repitch:update-progress', h);
     return () => ipcRenderer.removeListener('repitch:update-progress', h);
+  },
+  // macOS native audio capture
+  platform: process.platform,
+  startCapture: () => ipcRenderer.invoke('repitch:start-capture'),
+  stopCapture: () => ipcRenderer.invoke('repitch:stop-capture'),
+  onPcm: (cb) => {
+    const h = (_e: unknown, data: Uint8Array) => cb(data);
+    ipcRenderer.on('repitch:pcm', h);
+    return () => ipcRenderer.removeListener('repitch:pcm', h);
   },
 };
 

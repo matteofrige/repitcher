@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spike — Pipeline PCM Real-Time</title>
+  <style>
+    /* ---- Reset e tema scuro ---- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      color: #e0e0e0;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 20px;
+    }
+    h1 { font-size: 18px; color: #aaa; margin-bottom: 6px; }
+    h2 { font-size: 14px; color: #888; margin-bottom: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ---- Blocchi generici ---- */
+    .block {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    /* ---- Barra config ---- */
+    #config-bar {
+      background: #1e2030;
+      border: 1px solid #3a4060;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 30px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #config-bar span { font-size: 14px; }
+    .label-key { color: #888; }
+    .label-val { color: #7dd3fc; font-weight: bold; }
+
+    /* ---- Bottoni ---- */
+    button {
+      background: #2a2a2a;
+      color: #e0e0e0;
+      border: 1px solid #555;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-top: 4px;
+    }
+    button:hover { background: #383838; border-color: #888; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.active { background: #1a3a1a; border-color: #4ade80; color: #4ade80; }
+
+    /* ---- Metriche ---- */
+    #readout {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric-label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 6px; }
+    .metric-value { font-size: 28px; font-weight: bold; color: #f0f0f0; font-variant-numeric: tabular-nums; }
+    .metric-unit  { font-size: 12px; color: #666; margin-top: 2px; }
+
+    /* ---- Banner verdetto ---- */
+    #verdict {
+      border-radius: 8px;
+      padding: 18px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 14px;
+      transition: background 0.3s, color 0.3s;
+    }
+    #verdict.neutral { background: #2a2a2a; color: #888;    border: 1px solid #444; }
+    #verdict.good    { background: #0d2e1a; color: #4ade80; border: 1px solid #4ade80; }
+    #verdict.bad     { background: #2e0d0d; color: #f87171; border: 1px solid #f87171; }
+
+    /* ---- Istruzioni ---- */
+    #instructions ol { padding-left: 22px; }
+    #instructions li { margin-bottom: 8px; color: #bbb; }
+    #instructions strong { color: #e0e0e0; }
+
+    /* ---- Errori ---- */
+    #error-box {
+      display: none;
+      background: #2e1010;
+      border: 1px solid #c53030;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #fc8181;
+      margin-bottom: 14px;
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+
+    /* ---- Log IPC (PID etc.) ---- */
+    #ipc-log {
+      font-size: 12px;
+      color: #555;
+      margin-top: 8px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <h1>Spike — Pipeline PCM Real-Time</h1>
+
+  <!-- Barra configurazione (da query string) -->
+  <div id="config-bar">
+    <span><span class="label-key">SR: </span><span class="label-val" id="cfg-sr">—</span></span>
+    <span><span class="label-key">Chunk: </span><span class="label-val" id="cfg-chunk">—</span></span>
+    <span><span class="label-key">Mute: </span><span class="label-val" id="cfg-mute">—</span></span>
+    <span><span class="label-key">Canali: </span><span class="label-val" id="cfg-channels">—</span></span>
+    <span><span class="label-key">Capacità ring: </span><span class="label-val" id="cfg-ring">—</span></span>
+  </div>
+
+  <!-- Errori visibili a schermo -->
+  <div id="error-box"></div>
+
+  <!-- Controlli -->
+  <div class="block">
+    <h2>Controlli</h2>
+    <button id="btn-start">Avvia</button>
+    <button id="btn-stop" disabled>Ferma</button>
+    <div id="ipc-log"></div>
+  </div>
+
+  <!-- Metriche in tempo reale -->
+  <div id="readout">
+    <div class="metric">
+      <div class="metric-label">Buffer</div>
+      <div class="metric-value" id="val-buffer">—</div>
+      <div class="metric-unit">ms (latenza)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Underrun</div>
+      <div class="metric-value" id="val-underrun">—</div>
+      <div class="metric-unit">glitch totali</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Overflow</div>
+      <div class="metric-value" id="val-overflow">—</div>
+      <div class="metric-unit">campioni scartati</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Stato cattura</div>
+      <div class="metric-value" id="val-stato">—</div>
+      <div class="metric-unit">&nbsp;</div>
+    </div>
+  </div>
+
+  <!-- Banner verdetto -->
+  <div id="verdict" class="neutral">
+    Premi "Avvia" per iniziare il test
+  </div>
+
+  <!-- Istruzioni -->
+  <div class="block" id="instructions">
+    <h2>Protocollo di Test</h2>
+    <ol>
+      <li><strong>A) Premi Avvia.</strong> L'app costruisce il grafo audio e poi avvia audiotee.</li>
+      <li>
+        <strong>B) Fai partire Spotify/YouTube:</strong> dovresti <strong>SENTIRE</strong> l'audio
+        (passthrough) pulito dagli altoparlanti, e l'originale è mutato (senti solo la copia dalla pipeline).
+        Guarda <em>Underrun</em>: deve restare ~costante (0 o pochi). <em>Buffer</em> ~50–100 ms.
+      </li>
+      <li>
+        <strong>C) Verdetto:</strong> se senti buchi/scricchiolii o Underrun cresce di continuo → glitch (rosso).
+        Se audio pulito e Underrun stabile → pipeline fluida (verde).
+      </li>
+    </ol>
+  </div>
+
+  <script>
+    'use strict';
+    // ---- Importa IPC da Electron (nodeIntegration attivo) ----
+    const { ipcRenderer } = require('electron');
+
+    // ---- Leggi parametri dalla query string ----
+    const params   = new URLSearchParams(window.location.search);
+    const sr       = parseInt(params.get('sr')    || '48000', 10);
+    const SR       = sr;
+    const CHUNK_MS = parseInt(params.get('chunk') || '10',    10);
+    const MUTE     = params.get('mute') === '1';
+
+    // ---- Costanti ring buffer stereo ----
+    const CHANNELS  = 2;
+    const CAPACITY  = SR * CHANNELS * 2;          // 2 secondi di campioni interleaved float32
+    const PREROLL   = Math.round(SR * 0.05);       // 50 ms in FRAME stereo
+
+    // ---- Aggiorna UI config ----
+    document.getElementById('cfg-sr').textContent       = SR;
+    document.getElementById('cfg-chunk').textContent    = CHUNK_MS + ' ms';
+    document.getElementById('cfg-mute').textContent     = MUTE ? 'ON' : 'OFF';
+    document.getElementById('cfg-channels').textContent = 'stereo';
+    document.getElementById('cfg-ring').textContent     = (CAPACITY / (SR * CHANNELS)).toFixed(0) + ' s (' + CAPACITY + ' campioni)';
+
+    // ---- Riferimenti DOM ----
+    const btnStart    = document.getElementById('btn-start');
+    const btnStop     = document.getElementById('btn-stop');
+    const errorBox    = document.getElementById('error-box');
+    const ipcLog      = document.getElementById('ipc-log');
+    const verdictEl   = document.getElementById('verdict');
+    const valBuffer   = document.getElementById('val-buffer');
+    const valUnderrun = document.getElementById('val-underrun');
+    const valOverflow = document.getElementById('val-overflow');
+    const valStato    = document.getElementById('val-stato');
+
+    // ---- Shared Array Buffers ----
+    // ringSAB: Float32Array[CAPACITY] — campioni float32 LE stereo interleaved (L,R,L,R...)
+    // controlSAB: Int32Array[3] — [writeIndex, readIndex, underrunCount] in campioni interleaved
+    const ringSAB    = new SharedArrayBuffer(CAPACITY * 4);
+    const controlSAB = new SharedArrayBuffer(3 * 4);
+    const ring       = new Float32Array(ringSAB);
+    const control    = new Int32Array(controlSAB);
+
+    // ---- Stato runtime JS ----
+    let audioCtx        = null;
+    let captureActive   = false;
+    let overflowCount   = 0;   // campioni scartati per ring pieno
+    let prevUnderrun    = 0;   // valore precedente per rilevare crescita
+    let metricsInterval = null;
+
+    // ---- Utilità: mostra/nascondi errore ----
+    function showError(msg) {
+      errorBox.style.display = 'block';
+      errorBox.textContent   = 'ERRORE: ' + msg;
+      console.error('[spike-pipeline]', msg);
+    }
+    function clearError() {
+      errorBox.style.display = 'none';
+      errorBox.textContent   = '';
+    }
+
+    // ---- Bottone AVVIA ----
+    btnStart.addEventListener('click', async () => {
+      btnStart.disabled = true;
+      clearError();
+      try {
+        // 1. Crea AudioContext (richiede gesto utente)
+        audioCtx = new AudioContext({ sampleRate: SR });
+        await audioCtx.resume();
+
+        // 2. Carica l'AudioWorkletProcessor
+        await audioCtx.audioWorklet.addModule(
+          new URL('pcm-player.js', document.baseURI).href
+        );
+
+        // 3. Crea il nodo con i SAB condivisi — uscita stereo (2 canali)
+        const node = new AudioWorkletNode(audioCtx, 'pcm-player', {
+          outputChannelCount: [2],
+          processorOptions: {
+            ringSAB,
+            controlSAB,
+            capacity:      CAPACITY,
+            prerollFrames: PREROLL,
+          },
+        });
+
+        // 4. Connetti al destination — questo avvia l'Audio Service di Chromium
+        node.connect(audioCtx.destination);
+
+        // 5. Aspetta che l'Audio Service sia stabile, poi segnala al main
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const res = await ipcRenderer.invoke('playback-ready');
+
+        if (res.ok) {
+          ipcLog.textContent = 'Audio Service PID: ' + (res.audioPids || []).join(', ') || 'nessuno trovato';
+          captureActive = true;
+          btnStop.disabled = false;
+          valStato.textContent = 'attiva';
+          // Avvia loop metriche
+          startMetrics();
+        } else {
+          showError('playback-ready fallito: ' + res.error);
+          btnStart.disabled = false;
+        }
+
+      } catch (err) {
+        showError('Avvio fallito: ' + err.message);
+        btnStart.disabled = false;
+      }
+    });
+
+    // ---- Bottone FERMA ----
+    btnStop.addEventListener('click', async () => {
+      await stopCapture();
+    });
+
+    async function stopCapture() {
+      try {
+        await ipcRenderer.invoke('stop-capture');
+      } catch (_) {}
+      captureActive = false;
+      valStato.textContent = 'ferma';
+      btnStop.disabled  = true;
+      btnStart.disabled = false;
+      if (metricsInterval) {
+        clearInterval(metricsInterval);
+        metricsInterval = null;
+      }
+      setVerdict('neutral', 'Cattura fermata');
+    }
+
+    // ---- Produttore PCM: riceve chunk float32 LE stereo interleaved dal main ----
+    ipcRenderer.on('pcm', (_event, buf) => {
+      // buf è un Buffer/Uint8Array di PCM float32 LE stereo interleaved (L,R,L,R...)
+      const view        = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      const sampleCount = Math.floor(buf.byteLength / 4); // campioni interleaved totali
+      if (sampleCount === 0) return;
+
+      // Leggi indici atomici (produttore singolo)
+      const w    = Atomics.load(control, 0);
+      const r    = Atomics.load(control, 1);
+      const free = CAPACITY - (w - r);
+
+      // Scrivi quanti campioni ci stanno; scarta il resto
+      const toWrite   = Math.min(sampleCount, Math.max(0, free));
+      overflowCount  += sampleCount - toWrite;
+
+      for (let j = 0; j < toWrite; j++) {
+        // Leggi float32 little-endian direttamente (già in [-1, 1])
+        ring[(w + j) % CAPACITY] = view.getFloat32(j * 4, true);
+      }
+
+      // Aggiorna writeIndex atomicamente
+      Atomics.store(control, 0, w + toWrite);
+    });
+
+    // ---- Loop metriche (ogni 200ms) ----
+    function startMetrics() {
+      metricsInterval = setInterval(() => {
+        const w        = Atomics.load(control, 0);
+        const r        = Atomics.load(control, 1);
+        const underrun = Atomics.load(control, 2);
+
+        // Buffer riempimento → proxy latenza (dividi per CHANNELS per avere frame stereo)
+        const bufMs = (((w - r) / CHANNELS) / SR * 1000).toFixed(1);
+
+        valBuffer.textContent   = bufMs;
+        valUnderrun.textContent = underrun;
+        valOverflow.textContent = overflowCount;
+
+        // Verdetto: rosso se underrun sta crescendo, verde se stabile
+        if (captureActive) {
+          if (underrun > prevUnderrun) {
+            setVerdict('bad', '✗ glitch (underrun in aumento)');
+          } else {
+            setVerdict('good', '✓ pipeline fluida');
+          }
+        }
+        prevUnderrun = underrun;
+      }, 200);
+    }
+
+    // ---- Aggiorna banner verdetto ----
+    function setVerdict(cls, msg) {
+      verdictEl.className   = cls;
+      verdictEl.textContent = msg;
+    }
+  </script>
+</body>
+</html>

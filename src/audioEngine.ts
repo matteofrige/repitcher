@@ -3,6 +3,16 @@
 const STRETCH_WORKLET_FILE = 'signalsmith-worklet.js';
 const STRETCH_PROCESSOR_NAME = 'signalsmith-stretch-processor';
 
+// PCM player worklet for macOS native audio capture via audiotee.
+const PCM_PLAYER_WORKLET_FILE = 'pcm-player.js';
+const PCM_PLAYER_PROCESSOR_NAME = 'pcm-player';
+
+// Ring buffer constants (48 kHz stereo, 2-second capacity, 50 ms pre-roll).
+const PCM_SR = 48000;
+const PCM_CHANNELS = 2;
+const PCM_CAPACITY = PCM_SR * PCM_CHANNELS * 2; // interleaved float32 samples
+const PCM_PREROLL = Math.round(PCM_SR * 0.05);   // pre-roll frames
+
 export interface AudioDevice {
   deviceId: string;
   label: string;
@@ -49,16 +59,18 @@ export function looksLikeLoopbackDevice(label: string): boolean {
  * Real-time pitch-shifting engine.
  *
  * Signal path:
- *   getUserMedia(loopback device)  ->  MediaStreamSource
- *     ->  Signalsmith Stretch WASM AudioWorklet (semitones, no tempo change)
+ *   capture source  ->  Signalsmith Stretch WASM AudioWorklet (semitones)
  *     ->  AnalyserNode (visualiser tap)
  *     ->  <audio> element + setSinkId (processed output to a PHYSICAL device)
  *
- * The user routes system audio into a loopback device (BlackHole on macOS,
- * VB-Cable on Windows, a Monitor source on Linux) and sets it as the system
- * output. We capture from it, pitch-shift, and play the result to the physical
- * speakers/headphones via setSinkId. Input and output are different devices, so
- * there is no feedback loop.
+ * The capture source depends on the platform:
+ *   - macOS: the native `audiotee` binary taps system audio (Core Audio process
+ *     tap), muting the original and excluding our own audio process to avoid a
+ *     feedback loop. PCM is streamed over IPC into a ring buffer that feeds the
+ *     `pcm-player` AudioWorklet. No virtual device needed.
+ *   - Windows/Linux: a loopback device (VB-Cable / Monitor source) captured via
+ *     getUserMedia.
+ * The processed result always plays to a physical device via setSinkId.
  */
 export class AudioEngine {
   private permissionPrimed = false;
@@ -66,6 +78,7 @@ export class AudioEngine {
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private pitchNode: AudioWorkletNode | null = null;
   private workletReady = false;
+  private pcmWorkletReady = false;
   private analyser: AnalyserNode | null = null;
   private bypassGain: GainNode | null = null;
   private processedGain: GainNode | null = null;
@@ -74,6 +87,23 @@ export class AudioEngine {
   private outputEl: HTMLAudioElement | null = null;
   private audioContext: AudioContext | null = null;
   private preferredOutputId: string | null = null;
+
+  // macOS native capture (audiotee + ring buffer)
+  private ringSAB: SharedArrayBuffer | null = null;
+  private controlSAB: SharedArrayBuffer | null = null;
+  private ring: Float32Array | null = null;
+  private control: Int32Array | null = null;
+  private pcmUnsub: (() => void) | null = null;
+  private pcmPlayerNode: AudioWorkletNode | null = null;
+
+  // Guard against concurrent/duplicate start() calls (React StrictMode double
+  // mount, immediate + gesture auto-start) which would spawn two audiotee
+  // processes and two pipelines → distortion.
+  private starting = false;
+
+  private isMac(): boolean {
+    return (window as unknown as { repitch?: { platform?: string } }).repitch?.platform === 'darwin';
+  }
   private status: EngineStatus = {
     running: false,
     bypassed: false,
@@ -202,7 +232,12 @@ export class AudioEngine {
   /** Lazily create the single native AudioContext used by the engine. */
   private getContext(): AudioContext {
     if (!this.audioContext) {
-      this.audioContext = new AudioContext();
+      // On macOS the native audiotee capture emits PCM at PCM_SR (48 kHz), so the
+      // context must run at the same rate or the worklet would play it back at the
+      // wrong speed/pitch. Output is resampled to the physical device downstream.
+      this.audioContext = this.isMac()
+        ? new AudioContext({ sampleRate: PCM_SR })
+        : new AudioContext();
     }
     return this.audioContext;
   }
@@ -213,13 +248,30 @@ export class AudioEngine {
    * and the packaged file:// build.
    */
   private async ensureWorklet(ctx: AudioContext): Promise<void> {
-    if (this.workletReady) return;
-    const url = new URL(STRETCH_WORKLET_FILE, document.baseURI).href;
-    await ctx.audioWorklet.addModule(url);
-    this.workletReady = true;
+    if (!this.workletReady) {
+      const url = new URL(STRETCH_WORKLET_FILE, document.baseURI).href;
+      await ctx.audioWorklet.addModule(url);
+      this.workletReady = true;
+    }
+    if (this.isMac() && !this.pcmWorkletReady) {
+      const url = new URL(PCM_PLAYER_WORKLET_FILE, document.baseURI).href;
+      await ctx.audioWorklet.addModule(url);
+      this.pcmWorkletReady = true;
+    }
   }
 
+  /** Public entry point — gated so concurrent/duplicate calls are ignored. */
   public async start(deviceId?: string): Promise<void> {
+    if (this.starting || this.status.running) return;
+    this.starting = true;
+    try {
+      await this._start(deviceId);
+    } finally {
+      this.starting = false;
+    }
+  }
+
+  private async _start(deviceId?: string): Promise<void> {
     if (this.status.running) {
       await this.stop();
     }
@@ -247,15 +299,54 @@ export class AudioEngine {
       outLabel = physical?.label ?? null;
     }
 
-    // Acquire the loopback input stream.
-    const acquired = await this.acquireInputStream(deviceId);
-    const stream = acquired.stream;
-    const inputId = acquired.deviceId;
-    const inputLabel = acquired.label;
+    // Acquire the input source — native audiotee on macOS, getUserMedia elsewhere.
+    let source: AudioNode;
+    let inputId: string | null;
+    let inputLabel: string;
 
-    this.mediaStream = stream;
-    const source = ctx.createMediaStreamSource(stream);
-    this.sourceNode = source;
+    if (this.isMac()) {
+      // Allocate ring buffer SABs once (reuse across restarts)
+      if (!this.ringSAB) {
+        this.ringSAB = new SharedArrayBuffer(PCM_CAPACITY * 4);
+        this.controlSAB = new SharedArrayBuffer(3 * 4);
+      }
+      this.ring = new Float32Array(this.ringSAB);
+      this.control = new Int32Array(this.controlSAB!);
+      // Reset control indices
+      this.control[0] = 0; this.control[1] = 0; this.control[2] = 0;
+
+      const pcmPlayer = new AudioWorkletNode(ctx, PCM_PLAYER_PROCESSOR_NAME, {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: {
+          ringSAB: this.ringSAB,
+          controlSAB: this.controlSAB,
+          capacity: PCM_CAPACITY,
+          prerollFrames: PCM_PREROLL,
+        },
+      });
+      this.pcmPlayerNode = pcmPlayer;
+      source = pcmPlayer;
+      inputLabel = 'System Audio';
+      inputId = null;
+
+      // Register PCM chunk producer
+      const repitch = (window as unknown as { repitch?: { onPcm?: (cb: (chunk: Uint8Array) => void) => () => void } }).repitch;
+      if (repitch?.onPcm) {
+        this.pcmUnsub = repitch.onPcm((chunk) => this.writePcm(chunk));
+      }
+    } else {
+      // Win/Linux: acquire getUserMedia loopback stream as before
+      const acquired = await this.acquireInputStream(deviceId);
+      const stream = acquired.stream;
+      inputId = acquired.deviceId;
+      inputLabel = acquired.label;
+      this.mediaStream = stream;
+      const msSource = ctx.createMediaStreamSource(stream);
+      this.sourceNode = msSource;
+      source = msSource;
+    }
 
     // Signalsmith Stretch pitch-shift node (high-quality, WASM).
     const pitchNode = new AudioWorkletNode(ctx, STRETCH_PROCESSOR_NAME, {
@@ -310,6 +401,19 @@ export class AudioEngine {
     // Route the processed/bypassed output to a PHYSICAL device via an <audio>
     // element + setSinkId (NOT ctx.destination, which is the loopback device).
     await this.routeToOutputDevice(ctx, outId, outLabel);
+
+    // On macOS: start audiotee AFTER routeToOutputDevice so the Chromium Audio
+    // Service process is already alive and its PID can be found for exclusion.
+    if (this.isMac()) {
+      const repitch = (window as unknown as { repitch?: { startCapture?: () => Promise<{ ok: boolean; pid?: number | null; error?: string }> } }).repitch;
+      if (repitch?.startCapture) {
+        try {
+          await repitch.startCapture();
+        } catch (err) {
+          console.error('[audioEngine] startCapture failed:', err);
+        }
+      }
+    }
 
     const baseLatency = (ctx as AudioContext & { baseLatency?: number }).baseLatency ?? 0;
     const outputLatency =
@@ -385,9 +489,49 @@ export class AudioEngine {
     this.emit();
   }
 
+  /**
+   * PCM producer: write a Float32 LE stereo interleaved chunk into the ring buffer.
+   * Called from the IPC onPcm listener on macOS.
+   */
+  private writePcm(chunk: Uint8Array): void {
+    if (!this.ring || !this.control) return;
+    const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    const sampleCount = Math.floor(chunk.byteLength / 4);
+    if (sampleCount === 0) return;
+
+    const w = Atomics.load(this.control, 0);
+    const r = Atomics.load(this.control, 1);
+    const free = PCM_CAPACITY - (w - r);
+    const toWrite = Math.min(sampleCount, Math.max(0, free));
+
+    for (let j = 0; j < toWrite; j++) {
+      this.ring[(w + j) % PCM_CAPACITY] = view.getFloat32(j * 4, true);
+    }
+    Atomics.store(this.control, 0, w + toWrite);
+  }
+
   public async stop(): Promise<void> {
     if (!this.status.running && !this.mediaStream) {
       return;
+    }
+
+    // macOS: stop native capture and unsubscribe PCM listener
+    if (this.isMac()) {
+      this.pcmUnsub?.();
+      this.pcmUnsub = null;
+      const repitch = (window as unknown as { repitch?: { stopCapture?: () => Promise<boolean> } }).repitch;
+      if (repitch?.stopCapture) {
+        repitch.stopCapture().catch((err) => console.error('[audioEngine] stopCapture failed:', err));
+      }
+      // Tell the worklet to terminate (process() returns false → processor is
+      // destroyed). Otherwise the disconnected node keeps running and consuming
+      // the shared ring, fighting the next start()'s node (garbled/silent audio).
+      try { this.pcmPlayerNode?.port.postMessage({ type: 'stop' }); } catch { /* ignore */ }
+      try { this.pcmPlayerNode?.disconnect(); } catch { /* ignore */ }
+      this.pcmPlayerNode = null;
+      this.ring = null;
+      this.control = null;
+      // Keep SABs alive for reuse on next start()
     }
 
     try {

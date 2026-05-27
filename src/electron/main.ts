@@ -12,12 +12,83 @@ import {
 } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { spawn, ChildProcess } from 'child_process';
 import isDev from 'electron-is-dev';
+
+// Enable SharedArrayBuffer for the ring buffer shared with the AudioWorklet.
+// Must be set before app.whenReady.
+app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let splash: BrowserWindow | null = null;
 let isQuitting = false;
+
+// macOS native audio capture state
+let captureProc: ChildProcess | null = null;
+let capturePidWatch: NodeJS.Timeout | null = null;
+
+function audioteeBinaryPath(): string {
+  return isDev
+    ? path.join(__dirname, '..', '..', 'resources', 'bin', 'audiotee')
+    : path.join(process.resourcesPath, 'bin', 'audiotee');
+}
+
+function findAudioServicePid(): number | null {
+  const metrics = app.getAppMetrics();
+  const match = metrics.find((m) => m.serviceName === 'audio.mojom.AudioService');
+  return match ? match.pid : null;
+}
+
+/** Log audiotee's structured JSON stderr (one message per line). */
+function logAudioteeStderr(d: Buffer): void {
+  for (const line of d.toString().split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const obj = JSON.parse(line) as { message_type?: string; message?: string };
+      if (obj.message_type === 'error') console.error('[repitch] audiotee error:', obj);
+      else console.log(`[repitch] audiotee ${obj.message_type ?? 'log'}:`, obj.message ?? line);
+    } catch {
+      console.log('[repitch] audiotee stderr:', line);
+    }
+  }
+}
+
+/**
+ * Spawn the audiotee binary in stereo, muting system audio and excluding our own
+ * Audio Service process (so our playback isn't recaptured), forwarding PCM to the
+ * renderer. Returns the child process.
+ */
+function spawnAudiotee(excludePid: number | null, sender: Electron.WebContents): ChildProcess {
+  const args = ['--stereo', '--mute'];
+  if (excludePid !== null) args.push('--exclude-processes', String(excludePid));
+  args.push('--chunk-duration', '0.01');
+  console.log('[repitch] spawn audiotee', audioteeBinaryPath(), args);
+
+  const proc = spawn(audioteeBinaryPath(), args);
+  proc.stdout.on('data', (d: Buffer) => {
+    if (!sender.isDestroyed()) sender.send('repitch:pcm', d);
+  });
+  proc.stderr.on('data', logAudioteeStderr);
+  proc.on('exit', (code, sig) => {
+    console.log('[repitch] audiotee exited', code, sig);
+    if (captureProc === proc) captureProc = null;
+  });
+  proc.on('error', (err) => console.error('[repitch] audiotee spawn error:', err.message));
+  return proc;
+}
+
+/** Stop the capture process and its PID watcher (idempotent). */
+function stopCapture(): void {
+  if (capturePidWatch) {
+    clearInterval(capturePidWatch);
+    capturePidWatch = null;
+  }
+  if (captureProc) {
+    captureProc.kill('SIGTERM');
+    captureProc = null;
+  }
+}
 
 // Self-hosted update feed (no third-party service, no signing required — this
 // is a "check + download + open installer" flow, NOT silent auto-install).
@@ -313,18 +384,33 @@ function buildAppMenu(): void {
     {
       label: 'Help',
       submenu: [
-        {
-          label: 'BlackHole Installation Guide',
-          click: () => {
-            shell.openExternal('https://existential.audio/blackhole/');
-          },
-        },
-        {
-          label: 'Open Audio MIDI Setup',
-          click: () => {
-            shell.openExternal('file:///System/Applications/Utilities/Audio%20MIDI%20Setup.app');
-          },
-        },
+        ...(process.platform === 'darwin'
+          ? ([
+              {
+                label: 'Open Privacy: Audio Recording',
+                click: () => {
+                  shell.openExternal(
+                    'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'
+                  );
+                },
+              },
+              {
+                label: 'Open Audio MIDI Setup',
+                click: () => {
+                  shell.openExternal(
+                    'file:///System/Applications/Utilities/Audio%20MIDI%20Setup.app'
+                  );
+                },
+              },
+            ] as Electron.MenuItemConstructorOptions[])
+          : ([
+              {
+                label: 'Loopback Device Setup (VB-CABLE)',
+                click: () => {
+                  shell.openExternal('https://vb-audio.com/Cable/');
+                },
+              },
+            ] as Electron.MenuItemConstructorOptions[])),
       ],
     },
   ];
@@ -397,13 +483,61 @@ function registerIpcHandlers(): void {
       node: process.versions.node,
     };
   });
+
+  // macOS native audio capture via the audiotee binary.
+  ipcMain.handle('repitch:start-capture', async (event) => {
+    if (process.platform !== 'darwin') return { ok: false, error: 'macOS only' };
+    stopCapture();
+
+    // The Audio Service process (which we exclude from the tap) only exists once
+    // the renderer is producing audio — poll briefly for it.
+    let pid: number | null = null;
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      pid = findAudioServicePid();
+      if (pid !== null) break;
+      await new Promise<void>((res) => setTimeout(res, 100));
+    }
+    if (pid === null) {
+      console.warn('[repitch] Audio Service PID not found — capturing without exclusion');
+    }
+
+    let excludedPid = pid;
+    captureProc = spawnAudiotee(pid, event.sender);
+
+    // Chromium can restart the Audio Service under a new PID; respawn to keep
+    // excluding our own output (otherwise it would feed back into the tap).
+    capturePidWatch = setInterval(() => {
+      if (!captureProc) return;
+      const newPid = findAudioServicePid();
+      if (newPid !== null && newPid !== excludedPid) {
+        console.log(`[repitch] Audio Service PID ${excludedPid} -> ${newPid}, respawning`);
+        captureProc.kill('SIGTERM');
+        excludedPid = newPid;
+        captureProc = spawnAudiotee(newPid, event.sender);
+      }
+    }, 2000);
+
+    return { ok: true, pid };
+  });
+
+  ipcMain.handle('repitch:stop-capture', async () => {
+    stopCapture();
+    return true;
+  });
 }
 
 app.whenReady().then(() => {
+  // Request microphone access up front (used by the Tuner) so a fresh install
+  // gets the OS prompt. The pitch capture uses the separate audio-capture grant.
+  if (process.platform === 'darwin') {
+    systemPreferences.askForMediaAccess('microphone').catch(() => {});
+  }
+
   // Auto-grant microphone permission inside the WebContents so getUserMedia works
   // (macOS still enforces the OS-level permission separately).
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    if (permission === 'media') {
+    if (permission === 'media' || permission === 'display-capture') {
       callback(true);
       return;
     }
@@ -423,9 +557,11 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  stopCapture();
 });
 
 app.on('window-all-closed', () => {
+  stopCapture();
   // On macOS the app stays alive in the menu bar (window is hidden, not closed),
   // so functionality keeps running. Only quit on other platforms.
   if (process.platform !== 'darwin') {

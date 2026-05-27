@@ -1,0 +1,56 @@
+name: Build
+
+# Builds the macOS DMG (Apple Silicon) and the Windows NSIS installer on native
+# runners. Trigger manually (Actions → Build → Run workflow) or by pushing a
+# v* tag (e.g. v1.0.0). Artifacts are unsigned — sign/notarize for distribution.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  macos:
+    name: macOS (DMG, arm64)
+    runs-on: macos-14 # Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      # The bundled native capture binary must stay executable.
+      - name: Make audiotee executable
+        run: chmod +x resources/bin/audiotee
+      - name: Build DMG
+        run: npm run build-dmg
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: RePitch-macOS
+          path: release/*.dmg
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: Windows (NSIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Build NSIS installer
+        run: npm run dist-win
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: RePitch-Windows
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+          if-no-files-found: error
+          retention-days: 30

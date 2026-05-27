@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { audioEngine, AudioDevice } from './audioEngine';
 import { metronomeEngine } from './metronomeEngine';
 import type { UpdateInfo } from './electron/preload';
@@ -74,7 +74,9 @@ const App: React.FC = () => {
         setInputDevices(ins);
         setOutputDevices(outs);
 
-        // Restore the saved input device (if still present), else system default.
+        // Restore the saved input device (if still present), else use the system
+        // default mic. (The Tuner's mic is chosen here; the user can override it
+        // in Settings — e.g. if the default is a Continuity iPhone mic.)
         const savedIn = localStorage.getItem('repitch.inputId') ?? '';
         setInputId(savedIn && ins.some((d) => d.deviceId === savedIn) ? savedIn : '');
 
@@ -166,6 +168,44 @@ const App: React.FC = () => {
     }
     setUpdateStatus('available');
   };
+
+  // Auto-start the pitch engine on launch and keep it running for the whole
+  // session (the native tap mutes system audio the entire time, like the old
+  // BlackHole routing did). AudioContext needs a user gesture, so try at mount
+  // and on the first interaction.
+  useEffect(() => {
+    let done = false;
+    const tryStart = async () => {
+      if (done || audioEngine.getStatus().running) return;
+      try {
+        await audioEngine.start();
+        done = true;
+        cleanup();
+      } catch {
+        /* retry on next gesture */
+      }
+    };
+    const onGesture = () => void tryStart();
+    const cleanup = () => {
+      window.removeEventListener('pointerdown', onGesture);
+      window.removeEventListener('keydown', onGesture);
+    };
+    window.addEventListener('pointerdown', onGesture);
+    window.addEventListener('keydown', onGesture);
+    void tryStart();
+    return cleanup;
+  }, []);
+
+  // Pitch and Tuner are mutually exclusive. The native tap holds the audio
+  // device, so it must be released for the tuner's microphone to work: stop the
+  // pitch engine when entering the Tuner and resume it when leaving.
+  const prevTabRef = useRef<Tab>('pitch');
+  useEffect(() => {
+    const leftTuner = prevTabRef.current === 'tuner' && tab !== 'tuner';
+    prevTabRef.current = tab;
+    if (tab === 'tuner') void audioEngine.stop();
+    else if (leftTuner) void audioEngine.start();
+  }, [tab]);
 
   // Flash the whole window on each metronome beat when enabled.
   useEffect(() => {

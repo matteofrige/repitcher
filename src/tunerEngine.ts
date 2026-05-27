@@ -69,6 +69,10 @@ export class TunerEngine {
   private rafId: number | null = null;
   private buf: Float32Array = new Float32Array(2048);
   private listeners = new Set<TunerListener>();
+  // Generation token: invalidates an in-flight start() if stop()/start() is
+  // called again during its awaits (React StrictMode double-mount), which would
+  // otherwise leave the analyser running on a closed AudioContext.
+  private startToken = 0;
 
   public onReading(listener: TunerListener): () => void {
     this.listeners.add(listener);
@@ -80,23 +84,41 @@ export class TunerEngine {
   }
 
   public async start(deviceId?: string): Promise<void> {
-    if (this.ctx) return;
+    // Tear down any previous session, then claim a fresh generation token.
+    await this.stop();
+    const token = this.startToken;
+
     const ctx = new AudioContext();
-    this.ctx = ctx;
     if (ctx.state === 'suspended') await ctx.resume();
 
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: deviceId
-        ? {
-            deviceId: { exact: deviceId },
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
-        : { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      video: false,
-    });
-    this.source = ctx.createMediaStreamSource(this.stream);
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId
+          ? {
+              deviceId: { exact: deviceId },
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            }
+          : { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        video: false,
+      });
+    } catch (err) {
+      await ctx.close().catch(() => {});
+      throw err;
+    }
+
+    // A stop()/start() happened during the awaits → discard this stale session.
+    if (token !== this.startToken) {
+      stream.getTracks().forEach((t) => t.stop());
+      await ctx.close().catch(() => {});
+      return;
+    }
+
+    this.ctx = ctx;
+    this.stream = stream;
+    this.source = ctx.createMediaStreamSource(stream);
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.source.connect(this.analyser);
@@ -113,6 +135,7 @@ export class TunerEngine {
   }
 
   public async stop(): Promise<void> {
+    this.startToken++; // invalidate any in-flight start()
     if (this.rafId !== null) cancelAnimationFrame(this.rafId);
     this.rafId = null;
     try {

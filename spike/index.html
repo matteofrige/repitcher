@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spike — Loopback Auto-Cattura Test</title>
+  <style>
+    /* ---- Reset e tema scuro ---- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      color: #e0e0e0;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 20px;
+    }
+    h1 { font-size: 18px; color: #aaa; margin-bottom: 6px; }
+    h2 { font-size: 14px; color: #888; margin-bottom: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ---- Layout a blocchi ---- */
+    .block {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    /* ---- Config header ---- */
+    #config-bar {
+      background: #1e2030;
+      border: 1px solid #3a4060;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 30px;
+      align-items: center;
+    }
+    #config-bar span { font-size: 14px; }
+    .label-key { color: #888; }
+    .label-val { color: #7dd3fc; font-weight: bold; }
+
+    /* ---- Controlli ---- */
+    select, button {
+      background: #2a2a2a;
+      color: #e0e0e0;
+      border: 1px solid #555;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-top: 4px;
+    }
+    select { min-width: 280px; }
+    button:hover { background: #383838; border-color: #888; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.active { background: #1a3a1a; border-color: #4ade80; color: #4ade80; }
+
+    /* ---- Readout numerico ---- */
+    #readout {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric-label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 6px; }
+    .metric-value { font-size: 32px; font-weight: bold; color: #f0f0f0; font-variant-numeric: tabular-nums; }
+
+    /* ---- Banner verdetto ---- */
+    #verdict {
+      border-radius: 8px;
+      padding: 18px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 14px;
+      transition: background 0.3s, color 0.3s;
+    }
+    #verdict.neutral { background: #2a2a2a; color: #888; border: 1px solid #444; }
+    #verdict.good    { background: #0d2e1a; color: #4ade80; border: 1px solid #4ade80; }
+    #verdict.bad     { background: #2e0d0d; color: #f87171; border: 1px solid #f87171; }
+
+    /* ---- Istruzioni ---- */
+    #instructions ol { padding-left: 22px; }
+    #instructions li { margin-bottom: 8px; color: #bbb; }
+    #instructions strong { color: #e0e0e0; }
+
+    /* ---- Errori ---- */
+    #error-box {
+      display: none;
+      background: #2e1010;
+      border: 1px solid #c53030;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #fc8181;
+      margin-bottom: 14px;
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Config attuale letta dalla query string -->
+  <div id="config-bar">
+    <span><span class="label-key">Backend: </span><span class="label-val" id="cfg-backend">—</span></span>
+    <span><span class="label-key">Mute originale: </span><span class="label-val" id="cfg-mute">—</span></span>
+  </div>
+
+  <!-- Errori visibili a schermo -->
+  <div id="error-box"></div>
+
+  <!-- Selezione dispositivo di output -->
+  <div class="block">
+    <h2>Dispositivo di Output (dove esce il tono 440 Hz)</h2>
+    <select id="output"><option value="">— seleziona device —</option></select>
+    <button id="btn-refresh">Aggiorna lista device</button>
+  </div>
+
+  <!-- Controlli principali -->
+  <div class="block">
+    <h2>Controlli</h2>
+    <button id="btn-capture">1) Avvia cattura loopback</button>
+    <button id="btn-tone" disabled>2) Suona tono 440 Hz sull'uscita</button>
+  </div>
+
+  <!-- Readout numerico in tempo reale -->
+  <div id="readout">
+    <div class="metric">
+      <div class="metric-label">RMS catturato</div>
+      <div class="metric-value" id="val-rms">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Bin 440 Hz catturato</div>
+      <div class="metric-value" id="val-bin">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Tono 440 Hz</div>
+      <div class="metric-value" id="val-tone">OFF</div>
+    </div>
+  </div>
+
+  <!-- Banner verdetto -->
+  <div id="verdict" class="neutral">
+    Tono spento — accendi il tono per testare l'auto-cattura
+  </div>
+
+  <!-- Istruzioni protocollo di test -->
+  <div class="block" id="instructions">
+    <h2>Protocollo di Test</h2>
+    <ol>
+      <li>
+        <strong>A) Baseline:</strong> Avvia la cattura. Con NESSUN altro audio in riproduzione e tono OFF
+        → il valore "RMS catturato" deve essere vicino a <strong>0</strong>.
+      </li>
+      <li>
+        <strong>B) Test auto-cattura:</strong> Accendi il tono 440 Hz. Osserva "Bin 440 Hz catturato":
+        se <strong>SALE sopra ~40</strong> = auto-cattura rilevata (rischio Larsen, backend NON utilizzabile).
+        Se resta vicino a <strong>0</strong> = nessun loop, backend sicuro.
+      </li>
+      <li>
+        <strong>C) Verifica tap funzionante:</strong> Spegni il tono e avvia Spotify/YouTube.
+        Il valore "RMS catturato" deve <strong>SALIRE</strong> (prova che il tap cattura l'audio di sistema).
+        Con Mute ON non devi sentire nulla dagli altoparlanti (prova che il mute funziona).
+      </li>
+    </ol>
+  </div>
+
+  <script>
+    // ---- Requisiti via nodeIntegration ----
+    const { getLoopbackAudioMediaStream } = require('electron-audio-loopback');
+
+    // ---- Leggi config dalla query string ----
+    const params = new URLSearchParams(window.location.search);
+    const isCatap = params.get('catap') === '1';
+    const isMute  = params.get('mute')  === '1';
+    document.getElementById('cfg-backend').textContent = isCatap ? 'Core Audio Tap' : 'ScreenCaptureKit';
+    document.getElementById('cfg-mute').textContent    = isMute  ? 'ON'             : 'OFF';
+
+    // ---- Riferimenti DOM ----
+    const outputSelect  = document.getElementById('output');
+    const btnRefresh    = document.getElementById('btn-refresh');
+    const btnCapture    = document.getElementById('btn-capture');
+    const btnTone       = document.getElementById('btn-tone');
+    const valRms        = document.getElementById('val-rms');
+    const valBin        = document.getElementById('val-bin');
+    const valToneEl     = document.getElementById('val-tone');
+    const verdictEl     = document.getElementById('verdict');
+    const errorBox      = document.getElementById('error-box');
+
+    // ---- Stato runtime ----
+    let analyser        = null;   // AnalyserNode per la cattura
+    let audioCtx        = null;   // AudioContext per la cattura
+    let captureActive   = false;
+    let toneActive      = false;
+    let oscillator      = null;
+    let toneAudioEl     = null;
+
+    // Soglia bin 440 Hz per rilevare auto-cattura (0–255)
+    const BIN_THRESHOLD = 40;
+
+    // ---- Funzione di utilità: mostra errore ----
+    function showError(msg) {
+      errorBox.style.display = 'block';
+      errorBox.textContent = 'ERRORE: ' + msg;
+      console.error('[spike]', msg);
+    }
+    function clearError() {
+      errorBox.style.display = 'none';
+      errorBox.textContent = '';
+    }
+
+    // ---- Enumerazione device audio ----
+    // Le label compaiono solo dopo aver ottenuto un permesso media.
+    // Eseguiamo un probe getUserMedia({audio:true}) silenzioso prima di enumerare.
+    async function refreshDevices() {
+      try {
+        clearError();
+        // Probe permesso: ottieni uno stream e fermalo subito
+        const probeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        probeStream.getTracks().forEach(t => t.stop());
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+
+        outputSelect.innerHTML = '<option value="">— seleziona device —</option>';
+        outputs.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.textContent = d.label || `Device ${d.deviceId.slice(0,8)}`;
+          outputSelect.appendChild(opt);
+        });
+      } catch (err) {
+        showError('Enumerazione device fallita: ' + err.message);
+      }
+    }
+
+    btnRefresh.addEventListener('click', refreshDevices);
+
+    // Enumera subito all'avvio (le label potrebbero essere vuote fino al probe)
+    refreshDevices();
+
+    // ---- Calcolo indice bin più vicino a una frequenza target ----
+    function freqToBinIndex(ctx, analyserNode, targetHz) {
+      const nyquist  = ctx.sampleRate / 2;
+      const binCount = analyserNode.frequencyBinCount; // fftSize / 2
+      return Math.round((targetHz / nyquist) * binCount);
+    }
+
+    // ---- 1) Avvia cattura loopback ----
+    btnCapture.addEventListener('click', async () => {
+      if (captureActive) return;
+      try {
+        clearError();
+        btnCapture.disabled = true;
+        btnCapture.textContent = '...avvio cattura...';
+
+        const stream = await getLoopbackAudioMediaStream();
+
+        // DIAGNOSTICA: stato dei track audio catturati
+        const aTracks = stream.getAudioTracks();
+        const diag = aTracks.map(t => `label="${t.label}" enabled=${t.enabled} muted=${t.muted} state=${t.readyState}`).join(' | ');
+        console.log(`[spike] audio tracks (${aTracks.length}): ${diag || 'NESSUNO'}`);
+        if (aTracks.length === 0) {
+          showError('Lo stream loopback NON contiene track audio — cattura non avvenuta.');
+        } else if (aTracks[0].muted) {
+          showError('Track audio presente ma MUTED dal sistema — permesso TCC probabilmente negato. ' + diag);
+        }
+
+        audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+
+        // Collega source → analyser (NON colleghiamo analyser a destination
+        // per evitare di rimandare l'audio catturato agli altoparlanti)
+        source.connect(analyser);
+
+        captureActive = true;
+        btnCapture.textContent = '1) Cattura attiva';
+        btnCapture.classList.add('active');
+        btnTone.disabled = false;
+
+        // Avvia loop di analisi
+        startAnalysisLoop();
+      } catch (err) {
+        showError('Avvio cattura loopback fallito: ' + err.message);
+        btnCapture.disabled = false;
+        btnCapture.textContent = '1) Avvia cattura loopback';
+      }
+    });
+
+    // ---- Loop di analisi audio in tempo reale ----
+    function startAnalysisLoop() {
+      const timeData = new Uint8Array(analyser.fftSize);
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
+
+      function tick() {
+        if (!captureActive) return;
+
+        analyser.getByteTimeDomainData(timeData);
+        analyser.getByteFrequencyData(freqData);
+
+        // Calcola RMS dal time-domain (campioni 0-255, centro a 128)
+        let sumSq = 0;
+        for (let i = 0; i < timeData.length; i++) {
+          const s = (timeData[i] - 128) / 128;
+          sumSq += s * s;
+        }
+        const rms = Math.sqrt(sumSq / timeData.length);
+
+        // Magnitudine bin 440 Hz (0-255)
+        const binIdx = freqToBinIndex(audioCtx, analyser, 440);
+        const bin440 = freqData[binIdx] || 0;
+
+        // Aggiorna UI
+        valRms.textContent = rms.toFixed(4);
+        valBin.textContent = bin440;
+
+        // Aggiorna verdetto
+        updateVerdict(bin440);
+
+        requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    // ---- Aggiorna banner verdetto ----
+    function updateVerdict(bin440) {
+      if (!toneActive) {
+        verdictEl.className = 'neutral';
+        verdictEl.textContent = 'Tono spento — accendi il tono per testare l\'auto-cattura';
+        return;
+      }
+
+      if (bin440 > BIN_THRESHOLD) {
+        verdictEl.className = 'bad';
+        verdictEl.textContent = '⚠️  AUTO-CATTURA RILEVATA — rischio Larsen, questo backend NON è utilizzabile';
+      } else {
+        verdictEl.className = 'good';
+        verdictEl.textContent = '✓  Nessuna auto-cattura — l\'uscita dell\'app NON rientra nel tap';
+      }
+    }
+
+    // ---- 2) Toggle tono 440 Hz sull'uscita selezionata ----
+    btnTone.addEventListener('click', async () => {
+      if (!toneActive) {
+        await startTone();
+      } else {
+        stopTone();
+      }
+    });
+
+    async function startTone() {
+      try {
+        clearError();
+
+        // Crea un AudioContext separato per il tono (non interferisce con l'analyser)
+        const toneCtx   = new AudioContext();
+        oscillator      = toneCtx.createOscillator();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, toneCtx.currentTime);
+
+        const gainNode = toneCtx.createGain();
+        gainNode.gain.setValueAtTime(0.2, toneCtx.currentTime);
+
+        // Destination → MediaStream (così possiamo usare setSinkId su un <audio>)
+        const destNode = toneCtx.createMediaStreamDestination();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(destNode);
+
+        // Crea elemento <audio> e indirizzalo al device selezionato
+        if (toneAudioEl) {
+          toneAudioEl.remove();
+        }
+        toneAudioEl = document.createElement('audio');
+        toneAudioEl.autoplay = true;
+        toneAudioEl.srcObject = destNode.stream;
+        document.body.appendChild(toneAudioEl);
+
+        const selectedDeviceId = outputSelect.value;
+        if (selectedDeviceId) {
+          await toneAudioEl.setSinkId(selectedDeviceId);
+        }
+
+        await toneAudioEl.play();
+        oscillator.start();
+
+        toneActive = true;
+        valToneEl.textContent = 'ON';
+        btnTone.textContent   = '2) Ferma tono 440 Hz';
+        btnTone.classList.add('active');
+      } catch (err) {
+        showError('Avvio tono fallito: ' + err.message);
+      }
+    }
+
+    function stopTone() {
+      try {
+        if (oscillator) {
+          oscillator.stop();
+          oscillator = null;
+        }
+        if (toneAudioEl) {
+          toneAudioEl.pause();
+          toneAudioEl.srcObject = null;
+          toneAudioEl.remove();
+          toneAudioEl = null;
+        }
+      } catch (_) {}
+
+      toneActive = false;
+      valToneEl.textContent = 'OFF';
+      btnTone.textContent   = '2) Suona tono 440 Hz sull\'uscita';
+      btnTone.classList.remove('active');
+      // Resetta verdetto
+      updateVerdict(0);
+    }
+  </script>
+</body>
+</html>

@@ -1,17 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { audioEngine, EngineStatus } from '../audioEngine';
 import PitchControl from './PitchControl';
 import Visualizer from './Visualizer';
 
 /**
- * Pitch-shifter tool. Mounted only while its tab is active; starts the engine
- * on mount (gesture-aware) and stops it on unmount so switching tabs releases
- * the capture device.
+ * Pitch-shifter tool. The engine auto-starts and runs for the whole session
+ * (managed by App.tsx); this component only reflects state and controls
+ * pitch/bypass.
  */
 const PitchShifter: React.FC = () => {
   const [status, setStatus] = useState<EngineStatus>(audioEngine.getStatus());
   const [error, setError] = useState<string | null>(null);
-  const startingRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = audioEngine.onStatus((s) => {
@@ -19,39 +18,6 @@ const PitchShifter: React.FC = () => {
       setError(null);
     });
     return unsubscribe;
-  }, []);
-
-  // Auto-start (no explicit button). getDisplayMedia/resume usually need a
-  // gesture, so try at mount and on the first interaction. Stop on unmount.
-  useEffect(() => {
-    let done = false;
-    const tryStart = async (fromGesture: boolean) => {
-      if (done || startingRef.current || audioEngine.getStatus().running) return;
-      startingRef.current = true;
-      try {
-        await audioEngine.start();
-        done = true;
-        cleanup();
-      } catch (err) {
-        if (fromGesture) setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        startingRef.current = false;
-      }
-    };
-    const onGesture = () => {
-      void tryStart(true);
-    };
-    const cleanup = () => {
-      window.removeEventListener('pointerdown', onGesture);
-      window.removeEventListener('keydown', onGesture);
-    };
-    window.addEventListener('pointerdown', onGesture);
-    window.addEventListener('keydown', onGesture);
-    void tryStart(false);
-    return () => {
-      cleanup();
-      void audioEngine.stop();
-    };
   }, []);
 
   // Show the current pitch (and bypass state) next to the menu-bar icon.
@@ -75,9 +41,7 @@ const PitchShifter: React.FC = () => {
         {analyser && status.running ? (
           <Visualizer analyser={analyser} />
         ) : (
-          <div className="pitch-visual-placeholder">
-            {status.running ? 'Starting…' : 'Click anywhere to start'}
-          </div>
+          <div className="pitch-visual-placeholder">Starting…</div>
         )}
       </div>
 
@@ -86,7 +50,7 @@ const PitchShifter: React.FC = () => {
           <div className={`status-indicator ${status.running ? 'connected' : 'disconnected'}`}>
             <div className="status-dot"></div>
             <span className="status-text">
-              {status.running ? 'Processing system audio' : 'Click anywhere to start'}
+              {status.running ? 'Processing system audio' : 'Starting…'}
             </span>
           </div>
           <button
