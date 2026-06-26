@@ -7,9 +7,9 @@ import Tuner from './components/Tuner';
 import Metronome from './components/Metronome';
 import Settings from './components/Settings';
 import './styles/App.css';
-// ── TRIAL START (rimuovere col serial) ──
-import TrialLock from './components/TrialLock';
-import { isTrialExpired } from './trial';
+// ── TRIAL START (DISABILITATO — decommentare per riabilitare il periodo di prova) ──
+// import TrialLock from './components/TrialLock';
+// import { isTrialExpired } from './trial';
 // ── TRIAL END ──
 
 type Tab = 'pitch' | 'tuner' | 'metronome' | 'settings';
@@ -37,12 +37,12 @@ const rp = (): RePitchWin['repitch'] => (window as unknown as RePitchWin).repitc
 
 const App: React.FC = () => {
   const [tab, setTab] = useState<Tab>('pitch');
-  // ── TRIAL START (rimuovere col serial) ──
-  const [trialExpired, setTrialExpired] = useState(() => isTrialExpired());
-  useEffect(() => {
-    const id = setInterval(() => setTrialExpired(isTrialExpired()), 60 * 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
+  // ── TRIAL START (DISABILITATO — decommentare per riabilitare il periodo di prova) ──
+  // const [trialExpired, setTrialExpired] = useState(() => isTrialExpired());
+  // useEffect(() => {
+  //   const id = setInterval(() => setTrialExpired(isTrialExpired()), 60 * 60 * 1000);
+  //   return () => clearInterval(id);
+  // }, []);
   // ── TRIAL END ──
   const [inputDevices, setInputDevices] = useState<AudioDevice[]>([]);
   const [outputDevices, setOutputDevices] = useState<AudioDevice[]>([]);
@@ -218,14 +218,14 @@ const App: React.FC = () => {
     return unsub;
   }, [flashEnabled]);
 
-  // ── TRIAL START (rimuovere col serial) ──
-  if (trialExpired) {
-    return (
-      <div className="app">
-        <TrialLock />
-      </div>
-    );
-  }
+  // ── TRIAL START (DISABILITATO — decommentare per riabilitare il periodo di prova) ──
+  // if (trialExpired) {
+  //   return (
+  //     <div className="app">
+  //       <TrialLock />
+  //     </div>
+  //   );
+  // }
   // ── TRIAL END ──
 
   return (
