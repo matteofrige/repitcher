@@ -7,14 +7,14 @@
 //       delimitato dai commenti "TRIAL START / TRIAL END";
 //    3) in src/components/Settings.tsx togli l'import di trial e la
 //       <section> "License".
-//  La build smette di funzionare 30 giorni dopo TRIAL_RELEASE_DATE.
+//  La build smette di funzionare TRIAL_DURATION_DAYS giorni dopo TRIAL_RELEASE_DATE.
 // ════════════════════════════════════════════════════════════════════════
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Data di rilascio di questa versione (build). */
-export const TRIAL_RELEASE_DATE = new Date('2026-05-26T00:00:00');
-export const TRIAL_DURATION_DAYS = 30;
+export const TRIAL_RELEASE_DATE = new Date('2026-09-07T12:00:00');
+export const TRIAL_DURATION_DAYS = 60;
 export const TRIAL_EXPIRY = new Date(TRIAL_RELEASE_DATE.getTime() + TRIAL_DURATION_DAYS * DAY_MS);
 
 /** Giorni interi rimanenti prima del blocco (0 se scaduto). */

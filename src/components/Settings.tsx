@@ -2,8 +2,8 @@ import React from 'react';
 import { AudioDevice } from '../audioEngine';
 import type { UpdateInfo } from '../electron/preload';
 import '../styles/Settings.css';
-// ── TRIAL START (DISABILITATO — decommentare per riabilitare il periodo di prova) ──
-// import { trialDaysLeft, TRIAL_EXPIRY } from '../trial';
+// ── TRIAL START ──
+import { trialDaysLeft, TRIAL_EXPIRY } from '../trial';
 // ── TRIAL END ──
 
 interface SettingsProps {
@@ -43,7 +43,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   return (
     <div className="settings">
-      {/* ── TRIAL START (DISABILITATO — decommentare per riabilitare il periodo di prova) ──
+      {/* ── TRIAL START ── */}
       <section className="settings-section settings-trial-section">
         <h2 className="settings-title">License</h2>
         <div className="settings-trial">
@@ -52,7 +52,7 @@ const Settings: React.FC<SettingsProps> = ({
           <span className="settings-trial-expiry">Expires on {TRIAL_EXPIRY.toLocaleDateString()}</span>
         </div>
       </section>
-      ── TRIAL END ── */}
+      {/* ── TRIAL END ── */}
       {/* Devices */}
       <section className="settings-section">
         <h2 className="settings-title">Devices</h2>

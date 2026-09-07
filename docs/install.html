@@ -39,31 +39,47 @@
   </header>
 
   <div class="card">
-    <h2><span class="num">1</span> Installa RePitch</h2>
+    <h2><span class="num">1</span> Requisiti</h2>
     <ul>
-      <li>Apri <code>RePitch.dmg</code> e trascina <b>RePitch</b> nella cartella <b>Applicazioni</b>.</li>
-      <li><b>Prima apertura</b>: clic <b>destro</b> sull'icona &rarr; <b>Apri</b> &rarr; <b>Apri</b> (app non ancora firmata, passaggio una tantum).</li>
+      <li>Un Mac con chip <b>Apple</b> (M1, M2, M3 o M4).</li>
+      <li><b>macOS 14.2</b> o pi&ugrave; recente.</li>
     </ul>
-    <div class="note warn">Se compare &laquo;RePitch &egrave; danneggiata&raquo;, apri il <b>Terminale</b> e incolla:<br><code>xattr -dr com.apple.quarantine /Applications/RePitch.app</code></div>
+    <p>Per verificare la versione: men&ugrave; <b>Apple &rarr; Informazioni su questo Mac</b>.</p>
+    <div class="note">Non serve installare nessun driver n&eacute; altro software: RePitch cattura l'audio di sistema in modo nativo.</div>
   </div>
 
   <div class="card">
-    <h2><span class="num">2</span> Installa BlackHole <span style="color:var(--muted);font-weight:400;font-size:.85rem">(solo per il Pitch Shifter)</span></h2>
-    <p>Permette a RePitch di "ascoltare" l'audio del Mac. Gratuito e open source.</p>
-    <a class="btn" href="https://existential.audio/blackhole/" target="_blank" rel="noopener">Scarica BlackHole 2ch &#8599;</a>
-    <ul><li>Installa il pacchetto e <b>riavvia il Mac</b>.</li></ul>
-    <div class="note">Tuner e Metronome <b>non</b> richiedono BlackHole: per provare solo quelli, salta questo passo.</div>
+    <h2><span class="num">2</span> Copia l'app in Applicazioni</h2>
+    <ul>
+      <li>Apri <code>RePitch-1.0.0-arm64.dmg</code>.</li>
+      <li>Trascina <b>RePitch</b> sulla cartella <b>Applicazioni</b>.</li>
+      <li>Espelli (chiudi) il disco <b>RePitch</b> che si &egrave; aperto sulla scrivania.</li>
+    </ul>
   </div>
 
   <div class="card">
-    <h2><span class="num">3</span> Uscita di sistema &rarr; BlackHole</h2>
-    <p><b>Impostazioni di Sistema &rarr; Suono &rarr; Uscita &rarr; BlackHole 2ch.</b><br>Cos&igrave; l'audio delle app (Spotify, YouTube&hellip;) entra in RePitch.</p>
+    <h2><span class="num">3</span> Prima apertura (sblocco di sicurezza)</h2>
+    <p>Al primo avvio macOS mostra un avviso tipo &laquo;Impossibile verificare che RePitch non contenga malware&raquo; oppure &laquo;Apple non ha potuto verificare "RePitch"&raquo;, perch&eacute; l'app non &egrave; firmata con un certificato Apple. &Egrave; normale: va fatto solo la prima volta.</p>
+    <ol>
+      <li>Apri <b>RePitch</b> da Applicazioni (doppio clic). Compare l'avviso: premi <b>Fine</b> (NON &laquo;Sposta nel Cestino&raquo;).</li>
+      <li>Apri <b>Impostazioni di Sistema &rarr; Privacy e sicurezza</b> e scorri in fondo alla sezione &laquo;Sicurezza&raquo;: trovi la riga &laquo;"RePitch" &egrave; stata bloccata per proteggere il Mac&raquo; con il pulsante <b>Apri comunque</b>. Premilo.</li>
+      <li>Inserisci la password del Mac (o Touch ID) e conferma <b>Apri</b>.</li>
+    </ol>
+    <div class="note">Su macOS 13 o precedenti funziona anche: clic <b>destro</b> sull'icona &rarr; <b>Apri</b> &rarr; <b>Apri</b>.</div>
+    <div class="note warn"><b>Piano B</b>: se compare &laquo;RePitch &egrave; danneggiata e non pu&ograve; essere aperta&raquo;, oppure il pulsante &laquo;Apri comunque&raquo; non appare, apri il <b>Terminale</b> (Launchpad &rarr; Altro &rarr; Terminale, oppure cercalo con Spotlight), incolla:<br><code>xattr -dr com.apple.quarantine /Applications/RePitch.app</code><br>premi Invio, poi riapri l'app normalmente.</div>
   </div>
 
   <div class="card">
-    <h2><span class="num">4</span> Scegli le tue casse in RePitch</h2>
-    <p>Apri RePitch &rarr; scheda <b>Settings</b> &rarr; <b>Output (speakers / headphones)</b> &rarr; seleziona le tue <b>casse o cuffie reali</b> (NON BlackHole).</p>
-    <p>RePitch cattura da BlackHole, modifica l'audio e lo riproduce sulle tue casse. &#127911;</p>
+    <h2><span class="num">4</span> Permessi audio</h2>
+    <p>Alla prima apertura macOS chiede il permesso per il microfono / la registrazione audio: premi <b>Consenti</b>. Serve a RePitch per catturare l'audio del sistema.</p>
+    <div class="note">Se hai negato per sbaglio: <b>Impostazioni di Sistema &rarr; Privacy e sicurezza &rarr; Microfono &rarr;</b> abilita RePitch, poi riavvia l'app.</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">5</span> Scegli le tue casse</h2>
+    <p>Apri RePitch &rarr; scheda <b>Settings</b> &rarr; <b>Output</b> &rarr; seleziona le tue <b>casse o cuffie</b>.</p>
+    <p>Fai partire musica (Spotify, YouTube&hellip;) e usa il Pitch Shifter.</p>
+    <div class="note">Mentre RePitch &egrave; attivo, l'audio normale del Mac viene silenziato e riprodotto modificato attraverso RePitch: &egrave; voluto. &#127911;</div>
   </div>
 
   <div class="card">
@@ -76,16 +92,23 @@
   </div>
 
   <div class="card">
+    <h2>Versione di prova</h2>
+    <p>Questa build &egrave; una versione di prova che scade il <b>6 novembre 2026</b>. I giorni rimanenti sono visibili in <b>Settings &rarr; License</b>.</p>
+    <p>Dopo la scadenza l'app mostra una schermata di blocco: basta chiedere una nuova build.</p>
+  </div>
+
+  <div class="card">
     <h2>Problemi?</h2>
     <ul>
-      <li><b>Pitch Shifter muto</b>: verifica che l'uscita di sistema sia <b>BlackHole 2ch</b> e che in Settings l'Output siano le <b>casse reali</b>.</li>
-      <li><b>Voglio sentire anche l'audio non modificato</b>: in <b>Configurazione MIDI Audio</b> crea un &laquo;Dispositivo multi-uscita&raquo; con casse + BlackHole e impostalo come uscita.</li>
+      <li><b>Pitch Shifter muto</b>: controlla che in Settings l'Output siano le <b>casse reali</b> e che il permesso microfono sia attivo; prova a chiudere del tutto e riaprire l'app.</li>
+      <li><b>L'app non si apre / &laquo;danneggiata&raquo;</b>: vedi il <b>Piano B</b> nella card &laquo;Prima apertura&raquo; (punto 3).</li>
       <li><b>Il microfono del Tuner non parte</b>: Impostazioni di Sistema &rarr; Privacy e sicurezza &rarr; Microfono &rarr; abilita RePitch.</li>
       <li><b>L'app si chiude ma resta attiva</b>: &egrave; voluto &mdash; resta nella <b>menu bar</b>. Clic sull'icona per riaprirla; per uscire del tutto, clic destro &rarr; Quit.</li>
+      <li><b>Chiudendo RePitch l'audio del Mac non torna</b>: chiudi RePitch del tutto (<b>Quit</b> dalla menu bar) e, se serve, <b>Impostazioni di Sistema &rarr; Suono</b> &rarr; alza il volume dell'uscita.</li>
     </ul>
   </div>
 
-  <footer>RePitch &middot; build di test &mdash; grazie per il feedback! &#128591;</footer>
+  <footer>RePitch &middot; versione di prova (scade il 6 novembre 2026) &mdash; grazie per il feedback! &#128591;</footer>
 </div>
 </body>
 </html>
