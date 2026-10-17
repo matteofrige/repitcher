@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, type ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,7 +46,7 @@ function Section({ n, title, text, children }: { n: number; title: string; text:
 /** Metronome that follows the track's own beats (hidden where the platform has no beat tracker). */
 function BeatFollowSection({ bpm }: { bpm: number | null }) {
   const { follow, followClick, followFlash } = useTools();
-  const { active, analysing, error } = useBeatFollow();
+  const { active, analysing, error, uncertain } = useBeatFollow();
   const colors = useColors();
   if (!RepitchAudio.beatFollowAvailable()) return null;
   const status = analysing
@@ -56,7 +56,9 @@ function BeatFollowSection({ bpm }: { bpm: number | null }) {
       : error === 'failed'
         ? s.beatFollow.failed
         : active && bpm
-          ? s.beatFollow.following(Math.round(bpm))
+          ? uncertain
+            ? s.beatFollow.uncertain
+            : s.beatFollow.following(Math.round(bpm))
           : null;
   const row = { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 } as const;
   return (
@@ -90,6 +92,17 @@ function BeatFollowSection({ bpm }: { bpm: number | null }) {
                 {status}
               </T>
             </View>
+          ) : null}
+          {!analysing ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={s.beatFollow.correctA11y}
+              onPress={() => router.push('/beat-edit' as Href)}
+              style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', opacity: pressed ? 0.55 : 1 })}>
+              <T variant="callout" tone="tint">
+                {s.beatFollow.correct}
+              </T>
+            </Pressable>
           ) : null}
         </View>
       ) : null}

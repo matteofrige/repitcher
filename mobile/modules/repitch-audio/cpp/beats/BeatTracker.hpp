@@ -26,6 +26,9 @@ struct BeatTrackerResult {
   double medianBpm = 0;       // tempo mediano
   float confidence = 0;       // 0..1: quanto l'attivazione sta sui beat
   bool valid = false;         // false se troppo pochi beat / segnale senza ritmo
+  bool uncertain = false;     // valido ma poco affidabile: l'utente dovrebbe verificare all'ascolto
+  // Diagnostica (usata dall'harness per tarare le soglie).
+  float ratioScore = 0, periodScore = 0, ibiCv = 0, levelDepth = 0;
 };
 
 namespace beats_detail {
@@ -125,6 +128,7 @@ class BeatTracker {
     nextFrame_ = 0;
     buf_.clear();
     flux_.clear();
+    lvl_.clear();
     havePrev_ = false;
     ready_ = sampleRate >= 8000.0;
     if (!ready_) return;
@@ -143,6 +147,14 @@ class BeatTracker {
     cur_.assign(bands_.size(), 0.f);
   }
 
+  // Tempi (secondi) in cui l'utente ha battuto a tempo (gia' compensati per la latenza).
+  // Da chiamare prima di finish()/analyze(). Vuoto = nessun vincolo.
+  void setAnchors(std::vector<double> seconds) {
+    std::sort(seconds.begin(), seconds.end());
+    seconds.erase(std::unique(seconds.begin(), seconds.end()), seconds.end());
+    anchors_ = std::move(seconds);
+  }
+
   void push(const float* mono, std::size_t n) {
     if (!ready_ || !mono || n == 0) return;
     buf_.insert(buf_.end(), mono, mono + n);
@@ -158,6 +170,8 @@ class BeatTracker {
     std::vector<float> a = makeActivation();
     std::vector<float>().swap(flux_);
     std::vector<float>().swap(buf_);
+    res.levelDepth = levelDepth(lvl_);
+    std::vector<float>().swap(lvl_);
     decode(a, res);
     return res;
   }
@@ -177,12 +191,18 @@ class BeatTracker {
   static constexpr int kMaxHalfRegion = 1;
   static constexpr float kActPower = 2.f;  // rende l'attivazione piu' sparsa (vedi modello di osservazione)
 
+  static constexpr long long kAnchorWin = 3;      // frame
+  static constexpr float kAnchorBonus = 40.f;     // log, sullo stato p == 0 (un solo beat per finestra) entro +-kAnchorWin
+  static constexpr float kTauOutPenalty = 2.f;    // log per frame, tau fuori dal tempo battuto
+  static constexpr float kValidConfidence = 0.15f, kUncertainConfidence = 0.35f;
+  static constexpr float kMinLevelDepth = 0.45f, kMaxIbiCv = 0.25f;
   Options opt_;
+  std::vector<double> anchors_;
   double sr_ = 44100, effFps_ = 100;
   std::size_t hop_ = 441, win_ = 2048;
   bool ready_ = false, havePrev_ = false;
   std::size_t total_ = 0, bufStart_ = 0, nextFrame_ = 0;
-  std::vector<float> buf_, hann_, frameBuf_, mag_, prev_, cur_, flux_;
+  std::vector<float> buf_, hann_, frameBuf_, mag_, prev_, cur_, flux_, lvl_;
   beats_detail::RealFFT fft_;
 
   struct Band { std::size_t lo; std::vector<float> w; };
@@ -255,6 +275,11 @@ class BeatTracker {
           if (d > 0) fl += d;
         }
       }
+      {
+        float m = 0.f;
+        for (float v : cur_) m = std::max(m, v);  // banda piu' forte: sensibile anche a note strette
+        lvl_.push_back(m);
+      }
       flux_.push_back(fl);
       prev_.swap(cur_);
       havePrev_ = true;
@@ -295,6 +320,39 @@ class BeatTracker {
   // Mediana, sulle finestre di ~8 s con energia, del massimo dell'autocorrelazione normalizzata
   // (a media nulla) dell'attivazione per ritardi nell'intervallo dei tempi ammessi. Musica: >0.3;
   // rumore: ~0.1. Finestre corte per tollerare rallentando/accelerando.
+  // Coefficiente di variazione robusto (1.4826*MAD/mediana) degli intervalli tra beat consecutivi.
+  static double ibiCv(const std::vector<double>& b) {
+    if (b.size() < 3) return 1.0;
+    std::vector<double> ib;
+    for (std::size_t i = 1; i < b.size(); ++i) ib.push_back(b[i] - b[i - 1]);
+    std::vector<double> t(ib);
+    std::nth_element(t.begin(), t.begin() + t.size() / 2, t.end());
+    const double med = t[t.size() / 2];
+    for (double& v : t) v = std::fabs(v - med);
+    // (sopra: t e' stato permutato ma contiene gli stessi valori; ricalcolo dagli ib)
+    t.clear();
+    for (double v : ib) t.push_back(std::fabs(v - med));
+    std::nth_element(t.begin(), t.begin() + t.size() / 2, t.end());
+    return med > 1e-9 ? 1.4826 * t[t.size() / 2] / med : 1.0;
+  }
+
+  // Profondita' di modulazione del livello: p90 - p10 del livello della banda piu' forte (log) smoothed a ~0.3 s.
+  // Il rumore stazionario resta quasi piatto, un brano con note/silenzi/dinamica no.
+  float levelDepth(const std::vector<float>& l) const {
+    const std::size_t n = l.size();
+    const std::size_t h = std::max<std::size_t>(1, std::size_t(0.15 * effFps_));
+    if (n < 2 * h + 10) return 0.f;
+    std::vector<float> sm;
+    double acc = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+      acc += l[i];
+      if (i >= 2 * h) acc -= l[i - 2 * h];
+      if (i >= 2 * h) sm.push_back(float(acc / double(2 * h)));
+    }
+    std::sort(sm.begin(), sm.end());
+    return sm[std::size_t(0.9 * double(sm.size() - 1))] - sm[std::size_t(0.1 * double(sm.size() - 1))];
+  }
+
   static double periodicity(const std::vector<float>& a, int lagMin, int lagMax) {
     const std::size_t n = a.size(), W = std::max<std::size_t>(std::size_t(lagMax) * 3, 800);
     if (n < W) return 0.0;
@@ -319,12 +377,56 @@ class BeatTracker {
     return best[best.size() / 2];
   }
 
-  void decode(const std::vector<float>& a, BeatTrackerResult& res) const {
+  int tauMinF() const { return std::max(2, int(std::lround(60.0 * effFps_ / opt_.maxBpm))); }
+  int tauMaxF() const { return std::max(tauMinF(), int(std::lround(60.0 * effFps_ / opt_.minBpm))); }
+
+  // Frame (frazionario) di un tempo in secondi, inverso della conversione finale dei beat.
+  double timeToFrame(double sec) const { return (sec - kOnsetShiftWin * double(win_) / sr_) * sr_ / double(hop_); }
+
+  // Decodifica Viterbi: restituisce i frame dei beat (stati p == 0). Se ci sono ancoraggi li impone.
+  std::vector<std::size_t> viterbi(const std::vector<float>& a, bool useAnchors) const {
     const std::size_t T = a.size();
-    const int tauMin = std::max(2, int(std::lround(60.0 * effFps_ / opt_.maxBpm)));
-    const int tauMax = std::max(tauMin, int(std::lround(60.0 * effFps_ / opt_.minBpm)));
+    const int tauMin = tauMinF(), tauMax = tauMaxF();
     const int nTau = tauMax - tauMin + 1;
-    if (T < std::size_t(4 * tauMax)) return;
+    std::vector<std::size_t> bf;
+    if (T < std::size_t(4 * tauMax)) return bf;
+
+    // Ancoraggi: bonus sullo stato beat (p == 0) entro +-kAnchorWin frame; con >= 4 tap
+    // consecutivi ravvicinati (< 2.5 s) il tempo locale e' noto: i tau fuori da +-15% sono penalizzati.
+    std::vector<float> bonus;
+    std::vector<int> segLo, segHi;  // per frame: indici tau ammessi [segLo, segHi]; -1 = nessun vincolo
+    if (useAnchors && !anchors_.empty()) {
+      bonus.assign(T, 0.f);
+      std::vector<double> af;
+      for (double t : anchors_) af.push_back(timeToFrame(t));
+      for (double f : af) {
+        const long long c = std::llround(f);
+        for (long long k = c - kAnchorWin; k <= c + kAnchorWin; ++k)
+          if (k >= 0 && k < (long long)T) bonus[std::size_t(k)] = kAnchorBonus;
+      }
+      segLo.assign(T, -1);
+      segHi.assign(T, -1);
+      std::size_t i = 0;
+      while (i < af.size()) {
+        std::size_t j = i;
+        while (j + 1 < af.size() && (af[j + 1] - af[j]) < 2.5 * effFps_ && af[j + 1] > af[j]) ++j;
+        if (j - i + 1 >= 4) {
+          // tempo locale = mediana dei (fino a) 3 intervalli di tap attorno al tratto k -> k+1
+          for (std::size_t k = i; k < j; ++k) {
+            std::vector<double> gaps;
+            for (std::size_t q = (k > i ? k - 1 : k); q <= std::min(k + 1, j - 1); ++q) gaps.push_back(af[q + 1] - af[q]);
+            std::nth_element(gaps.begin(), gaps.begin() + gaps.size() / 2, gaps.end());
+            const double g = gaps[gaps.size() / 2];
+            const int lo = int(std::floor(g * 0.85)) - tauMin, hi = int(std::ceil(g * 1.15)) - tauMin;
+            if (hi < 0 || lo > nTau - 1) continue;
+            const long long f0 = std::max<long long>(0, (long long)std::llround(af[k]));
+            const long long f1 = std::min<long long>((long long)T - 1, (long long)std::llround(af[k + 1]));
+            for (long long t = f0; t <= f1; ++t) { segLo[std::size_t(t)] = std::max(0, lo); segHi[std::size_t(t)] = std::min(nTau - 1, hi); }
+          }
+        }
+        i = j + 1;
+      }
+    }
 
     std::vector<std::size_t> off(nTau + 1, 0);
     std::vector<int> half(nTau);
@@ -395,6 +497,8 @@ class BeatTracker {
         for (int p = 1; p < tau; ++p) dst[p] = src[p - 1] + ln;
         for (int p = 1; p <= h; ++p) dst[p] += d;
         for (int p = std::max(h + 1, tau - h); p < tau; ++p) dst[p] += d;
+        if (!segLo.empty() && segLo[t] >= 0 && (i < segLo[t] || i > segHi[t]))
+          for (int p = 1; p < tau; ++p) dst[p] -= kTauOutPenalty;
         lastScore[i] = src[tau - 1];
       }
       std::int16_t* bpt = bp.data() + t * std::size_t(nTau);
@@ -406,6 +510,8 @@ class BeatTracker {
           if (s > best) { best = s; arg = tSrc[q]; }
         }
         nxt[off[j]] = best + lb;
+        if (!segLo.empty() && segLo[t] >= 0 && (j < segLo[t] || j > segHi[t])) nxt[off[j]] -= kTauOutPenalty;
+        if (!bonus.empty() && bonus[t] > 0.f) nxt[off[j]] += bonus[t];
         bpt[j] = std::int16_t(arg);
       }
       if ((t & 31) == 0) {  // rinormalizzazione per non perdere precisione in float
@@ -421,7 +527,6 @@ class BeatTracker {
     for (std::size_t s = 1; s < S; ++s) if (cur[s] > cur[bestS]) bestS = s;
     int j = int(std::upper_bound(off.begin(), off.end(), bestS) - off.begin()) - 1;
     int p = int(bestS - off[j]);
-    std::vector<std::size_t> bf;
     for (std::size_t t = T; t-- > 0;) {
       if (p == 0) bf.push_back(t);
       if (t == 0) break;
@@ -433,12 +538,21 @@ class BeatTracker {
       }
     }
     std::reverse(bf.begin(), bf.end());
+    return bf;
+  }
+
+  void decode(const std::vector<float>& a, BeatTrackerResult& res) const {
+    const std::size_t T = a.size();
+    const int tauMin = tauMinF(), tauMax = tauMaxF();
+    const bool anchored = !anchors_.empty();
+    std::vector<std::size_t> bf = viterbi(a, true);
+    if (bf.empty()) return;
 
     // Controllo d'ottava: se il tempo decodificato e' > 140 BPM e una delle due sotto-sequenze
     // "un beat su due" ha attivazione media sui beat >= 0.8x quella della sequenza completa,
     // il tempo e' quasi certamente una suddivisione: si preferisce la meta' (fase migliore).
     // Non si raddoppia mai automaticamente.
-    if (bf.size() >= 16) {
+    if (!anchored && bf.size() >= 16) {
       std::vector<double> ib;
       for (std::size_t i = 1; i < bf.size(); ++i) ib.push_back(double(bf[i] - bf[i - 1]));
       std::nth_element(ib.begin(), ib.begin() + ib.size() / 2, ib.end());
@@ -460,8 +574,13 @@ class BeatTracker {
     const double shift = kOnsetShiftWin * double(win_) / sr_;
     const long long R = 3, W = std::max<long long>(1, std::llround(0.25 * effFps_));
     std::vector<float> tmp;
+    std::vector<double> af;
+    for (double t : anchors_) af.push_back(timeToFrame(t));
     for (std::size_t f : bf) {
       double pos = double(f);
+      bool pinned = false;  // beat sull'ancoraggio: nessun raffinamento, il tap vince
+      for (double fa : af) if (std::fabs(fa - double(f)) <= double(kAnchorWin) + 0.5) { pinned = true; break; }
+      if (pinned) { res.beats.push_back(pos * double(hop_) / sr_ + shift); continue; }
       const long long lo = std::max<long long>(0, (long long)f - R), hi = std::min<long long>((long long)T - 1, (long long)f + R);
       long long pk = lo;
       for (long long k = lo; k <= hi; ++k) if (a[k] > a[pk]) pk = k;
@@ -476,6 +595,18 @@ class BeatTracker {
         pos = double(pk) + dlt;
       }
       res.beats.push_back(pos * double(hop_) / sr_ + shift);
+    }
+    if (anchored) {  // il tap dell'utente (gia' compensato per la latenza) vince sul beat vicino
+      const double tolS = (double(kAnchorWin) + 0.5) * double(hop_) / sr_;
+      for (double ta : anchors_) {
+        long long bi = -1;
+        double bd = tolS;
+        for (std::size_t i = 0; i < res.beats.size(); ++i) {
+          const double d = std::fabs(res.beats[i] - ta);
+          if (d <= bd) { bd = d; bi = (long long)i; }
+        }
+        if (bi >= 0) res.beats[std::size_t(bi)] = ta;
+      }
     }
     std::sort(res.beats.begin(), res.beats.end());
     res.beats.erase(std::unique(res.beats.begin(), res.beats.end()), res.beats.end());
@@ -496,7 +627,17 @@ class BeatTracker {
     const double cRatio = std::max(0.0, std::min(1.0, (ratio - 1.0) / 3.0));
     const double cPer = std::max(0.0, std::min(1.0, (periodicity(a, tauMin, tauMax) - 0.12) / 0.28));
     res.confidence = float(cRatio * cPer);
-    res.valid = res.beats.size() >= 8 && res.confidence >= 0.15f;
+    res.ratioScore = float(ratio);
+    res.periodScore = float(periodicity(a, tauMin, tauMax));
+    res.ibiCv = float(ibiCv(res.beats));
+    // Gate duro solo per "nessun ritmo": pochi beat, oppure confidenza bassa E segnale senza
+    // eventi (rumore stazionario: livello quasi piatto) o beat irregolari. Un brano legato/lento con
+    // note vere (levelDepth >= 0.45) e beat regolari (ibiCv < 0.25) resta valido ma incerto.
+    const bool plausible = res.levelDepth >= kMinLevelDepth && res.ibiCv < kMaxIbiCv;
+    res.valid = res.beats.size() >= 8 && (res.confidence >= kValidConfidence || plausible);
+    res.uncertain = res.valid && res.confidence < kUncertainConfidence;
+    // Con almeno 4 tap dell'utente il risultato e' guidato da lui: non si segnala come incerto.
+    if (anchored && anchors_.size() >= 4 && res.beats.size() >= 8) { res.valid = true; res.uncertain = false; }
   }
 };
 

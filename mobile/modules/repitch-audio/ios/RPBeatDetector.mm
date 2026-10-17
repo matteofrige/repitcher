@@ -9,7 +9,7 @@
 
 @implementation RPBeatDetector
 
-+ (NSDictionary<NSString *, id> *)detectBeatsInFileAtURL:(NSURL *)url error:(NSError **)error {
++ (NSDictionary<NSString *, id> *)detectBeatsInFileAtURL:(NSURL *)url anchors:(NSArray<NSNumber *> *)anchors error:(NSError **)error {
   AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:error];
   if (!file) return nil;
 
@@ -17,7 +17,7 @@
   const double sampleRate = format.sampleRate;
   const AVAudioFrameCount channels = format.channelCount;
   if (sampleRate <= 0 || file.length <= 0 || channels == 0) {
-    return @{@"valid": @NO, @"bpm": @0, @"confidence": @0, @"beats": @[]};
+    return @{@"valid": @NO, @"uncertain": @NO, @"bpm": @0, @"confidence": @0, @"beats": @[]};
   }
 
   const AVAudioFrameCount chunk = 32768;
@@ -25,6 +25,12 @@
   if (!buffer) return nil;
 
   repitch::BeatTracker tracker;
+  std::vector<double> anchorTimes;
+  for (NSNumber *a in anchors) {
+    const double v = a.doubleValue;
+    if (std::isfinite(v) && v >= 0) anchorTimes.push_back(v);
+  }
+  tracker.setAnchors(std::move(anchorTimes));
   tracker.begin(sampleRate);
   std::vector<float> mono(chunk);
 
@@ -58,6 +64,7 @@
   for (double t : res.beats) [beats addObject:@(std::round(t * 10000.0) / 10000.0)];
   return @{
     @"valid": @(res.valid),
+    @"uncertain": @(res.uncertain),
     @"bpm": @(res.medianBpm),
     @"confidence": @((double)res.confidence),
     @"beats": beats,

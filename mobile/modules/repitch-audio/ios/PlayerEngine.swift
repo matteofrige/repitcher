@@ -208,6 +208,16 @@ final class PlayerEngine {
       epoch: playbackEpoch)
   }
 
+  /// Position in the file (seconds) that is *audible at the speaker* at host time `h` (mach seconds, same clock as
+  /// AVAudioTime.seconds(forHostTime:)): the render-cycle snapshot extrapolated to `h`, minus the output path
+  /// (hardware + IO buffer) and the pitch unit's latency. Nil when not playing. Used to place user taps on the track.
+  func audibleFileSeconds(atHostSeconds h: Double) -> Double? {
+    guard let snap = playbackSnapshot() else { return nil }
+    let session = AVAudioSession.sharedInstance()
+    let renderedSeconds = (snap.fileFrame + (h - snap.hostSeconds) * snap.fileSampleRate) / snap.fileSampleRate
+    return renderedSeconds - (session.outputLatency + session.ioBufferDuration) - pitchLatencySeconds
+  }
+
   // MARK: - Graph
 
   private func ensurePitchUnit(_ done: @escaping (Result<Void, Error>) -> Void) {

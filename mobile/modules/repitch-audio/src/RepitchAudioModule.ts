@@ -17,10 +17,11 @@ declare class RepitchAudioModule extends NativeModule<RepitchAudioEvents> {
   toneStart?(frequency: number, volume: number): Promise<void>;
   toneStop?(): Promise<void>;
   detectTuning?(uri: string): Promise<TuningDetection | null>;
-  detectBeats?(uri: string): Promise<BeatDetection | null>;
-  beatFollowStart?(beats: number[], beatsPerBar: number, clickAudible: boolean, volume: number): Promise<void>;
+  detectBeats?(uri: string, anchors: number[]): Promise<BeatDetection | null>;
+  beatTapPosition?(uptimeMs: number): Promise<number | null>;
+  beatFollowStart?(beats: number[], beatsPerBar: number, downbeatIndex: number, clickAudible: boolean, volume: number): Promise<void>;
   beatFollowStop?(): Promise<void>;
-  beatFollowConfigure?(clickAudible: boolean, beatsPerBar: number, volume: number): Promise<void>;
+  beatFollowConfigure?(clickAudible: boolean, beatsPerBar: number, downbeatIndex: number, volume: number): Promise<void>;
   probeAudio?(uri: string): Promise<{ duration: number }>;
 }
 

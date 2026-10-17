@@ -1,7 +1,8 @@
 // Harness: main <file.f32> <sampleRate> [truth.beats]
 //          main --synth <kind> <out.f32> [sampleRate=44100] [seconds=60]
 // Render per l'ascolto: main <file.f32> <sr> [truth.beats|-] --render out.wav
-// kind: eighths | clicks120 | drums | rall | accel | rubato | noise
+// Con ancoraggi: main <f32> <sr> [truth|-] --anchors anchors.txt (un tempo in secondi per riga)
+// kind: eighths | clicks120 | drums | rall | accel | rubato | softlegato | noise
 // Il file .f32 e' mono float32 little-endian. Per analizzare audio reale:
 //   ffmpeg -i in.mp3 -ac 1 -ar 44100 -f f32le out.f32
 //   main out.f32 44100
@@ -90,6 +91,7 @@ static std::vector<double> beatsFor(const std::string& kind, double secs, double
     else if (kind == "eighths") bpm = 72;
     else if (kind == "rall") bpm = 110 - 50 * std::min(1.0, t / 40.0);
     else if (kind == "accel") bpm = 70 + 60 * std::min(1.0, t / 40.0);
+    else if (kind == "softlegato") bpm = 54 * (1 + 0.08 * std::sin(2 * M_PI * t / 17.0));
     else bpm = 90 * (1 + 0.15 * std::sin(2 * M_PI * t / 12.0));
     t += 60.0 / bpm;
   }
@@ -134,6 +136,31 @@ static Sig synth(const std::string& kind, double sr, double secs, std::vector<do
         }
         addTone(y, sr, truth[i] + k * beat / 4, 0.25, 440.0 * std::pow(2.0, (m - 69) / 12.0), k == 0 ? 0.2 : 0.18);
       }
+  } else if (kind == "softlegato") {
+    // Note quasi sinusoidali con attacco di 80 ms, legate (si sovrappongono), fondo quieto.
+    // Il "beat" di riferimento e' a meta' attacco (inizio nota + 40 ms).
+    // Con note "decoy" a frazioni casuali del battito (20-80%, fino a due), stessa forza: sul beat non c'e'
+    // niente di speciale oltre alla regolarita' lenta.
+    std::vector<std::pair<double, double>> evs;
+    for (size_t i = 0; i < truth.size(); ++i) {
+      evs.push_back({truth[i], 0.10 + 0.05 * rnd()});
+      if (i + 1 < truth.size())
+        for (int k = 0; k < 2; ++k)
+          if (rnd() < 0.85) evs.push_back({truth[i] + (0.2 + 0.6 * rnd()) * (truth[i + 1] - truth[i]), 0.30 + 0.20 * rnd()});
+      std::sort(evs.begin(), evs.end());
+    }
+    for (size_t i = 0; i < evs.size(); ++i) {
+      double t0 = evs[i].first, amp = evs[i].second;
+      double dur = (i + 1 < evs.size() ? evs[i + 1].first - t0 : 1.0) + 0.05;
+      double f0 = 440.0 * std::pow(2.0, (57 + int(rnd() * 10) - 69) / 12.0);
+      size_t st = size_t(t0 * sr), n = size_t(dur * sr);
+      for (size_t k = 0; k < n && st + k < y.size(); ++k) {
+        double t = double(k) / sr;
+        double env = std::min(1.0, t / 0.08) * std::min(1.0, (dur - t) / 0.12);
+        y[st + k] += float(amp * env * (std::sin(2 * M_PI * f0 * t) + 0.15 * std::sin(2 * M_PI * 2 * f0 * t)));
+      }
+    }
+    for (auto& t : truth) t += 0.04;
   } else {  // rall / accel / rubato: note tonali
     static const int chord[3][3] = {{0, 4, 7}, {0, 3, 7}, {0, 5, 9}};
     for (size_t i = 0; i < truth.size(); ++i) {
@@ -183,13 +210,25 @@ int main(int argc, char** argv) {
   std::fclose(f);
   double sr = std::atof(argv[2]);
   const char* renderOut = nullptr;
-  for (int i = 3; i + 1 < argc; ++i) if (!std::strcmp(argv[i], "--render")) renderOut = argv[i + 1];
+  const char* anchorsFile = nullptr;
+  for (int i = 3; i + 1 < argc; ++i) {
+    if (!std::strcmp(argv[i], "--render")) renderOut = argv[i + 1];
+    if (!std::strcmp(argv[i], "--anchors")) anchorsFile = argv[i + 1];
+  }
+  std::vector<double> anchors;
+  if (anchorsFile) {
+    FILE* g = std::fopen(anchorsFile, "r");
+    double v;
+    while (g && std::fscanf(g, "%lf", &v) == 1) anchors.push_back(v);
+    if (g) std::fclose(g);
+  }
 
   auto t0 = std::chrono::steady_clock::now();
   repitch::BeatTracker bt;
+  bt.setAnchors(anchors);
   repitch::BeatTrackerResult r = bt.analyze(x.data(), x.size(), sr);
   double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-  std::printf("beats=%zu bpm=%.2f conf=%.3f valid=%d ms=%.0f", r.beats.size(), r.medianBpm, r.confidence, r.valid ? 1 : 0, ms);
+  std::printf("beats=%zu bpm=%.2f conf=%.3f valid=%d unc=%d ratio=%.2f per=%.2f cv=%.3f ld=%.2f ms=%.0f", r.beats.size(), r.medianBpm, r.confidence, r.valid ? 1 : 0, r.uncertain ? 1 : 0, r.ratioScore, r.periodScore, r.ibiCv, r.levelDepth, ms);
 
   if (renderOut) {
     Sig y(x);
@@ -211,7 +250,7 @@ int main(int argc, char** argv) {
       std::fclose(w);
     }
   }
-  if (argc > 3 && std::strcmp(argv[3], "--render") && std::strcmp(argv[3], "-")) {
+  if (argc > 3 && std::strcmp(argv[3], "--render") && std::strcmp(argv[3], "--anchors") && std::strcmp(argv[3], "-")) {
     std::vector<double> tr;
     FILE* g = std::fopen(argv[3], "r");
     double v;
@@ -236,6 +275,16 @@ int main(int argc, char** argv) {
     double P = r.beats.empty() ? 0 : double(tp) / r.beats.size(), Rc = tr.empty() ? 0 : double(tp) / tr.size();
     double F = P + Rc > 0 ? 2 * P * Rc / (P + Rc) : 0;
     std::printf(" F=%.3f mean_err=%.1f max_err=%.1f bias=%.1f", F, tp ? sumErr / tp : 0.0, maxErr, tp ? bias / tp : 0.0);
+  }
+  if (std::getenv("ADBG")) { for (double b : r.beats) std::fprintf(stderr, "%.3f ", b); std::fprintf(stderr, "\n"); }
+  if (!anchors.empty()) {
+    double worst = 0;
+    for (double ta : anchors) {
+      double bd = 1e9;
+      for (double b : r.beats) bd = std::min(bd, std::fabs(b - ta));
+      worst = std::max(worst, bd * 1000); if (std::getenv("ADBG")) std::fprintf(stderr, "anchor %.3f dev %.1f\n", ta, bd * 1000);
+    }
+    std::printf(" anchors=%zu anchor_max_dev=%.1fms", anchors.size(), worst);
   }
   std::printf("\n");
   return 0;

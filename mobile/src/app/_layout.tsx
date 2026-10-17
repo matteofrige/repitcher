@@ -76,6 +76,7 @@ function Navigator() {
           name="guida"
           options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
         />
+        <Stack.Screen name="beat-edit" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="about" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="backup" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen

@@ -90,22 +90,31 @@ export function beatFollowAvailable(): boolean {
   return typeof RepitchAudioModule.detectBeats === 'function' && typeof RepitchAudioModule.beatFollowStart === 'function';
 }
 /** Finds the beats of a whole file in the background (can take several seconds). */
-export function detectBeats(uri: string): Promise<BeatDetection | null> {
+export function detectBeats(uri: string, anchors: number[] = []): Promise<BeatDetection | null> {
   if (!RepitchAudioModule.detectBeats) return Promise.resolve(null);
-  return RepitchAudioModule.detectBeats(uri);
+  return RepitchAudioModule.detectBeats(uri, anchors);
+}
+/**
+ * Track position (seconds) audible at the moment of a touch. `uptimeMs` is RN's `nativeEvent.timestamp`
+ * (iOS: system uptime in ms, same clock as the audio host time); output + pitch latency already subtracted.
+ * Null when the track isn't playing or the platform has no support.
+ */
+export function beatTapPosition(uptimeMs: number): Promise<number | null> {
+  if (!RepitchAudioModule.beatTapPosition) return Promise.resolve(null);
+  return RepitchAudioModule.beatTapPosition(uptimeMs);
 }
 /** Clicks/flashes on `beats` (seconds in the loaded track) while it plays; replaces the fixed-tempo metronome. */
-export function beatFollowStart(beats: number[], beatsPerBar: number, clickAudible: boolean, volume: number): Promise<void> {
+export function beatFollowStart(beats: number[], beatsPerBar: number, downbeatIndex: number, clickAudible: boolean, volume: number): Promise<void> {
   if (!RepitchAudioModule.beatFollowStart) return Promise.resolve();
-  return RepitchAudioModule.beatFollowStart(beats, beatsPerBar, clickAudible, volume);
+  return RepitchAudioModule.beatFollowStart(beats, beatsPerBar, downbeatIndex, clickAudible, volume);
 }
 export function beatFollowStop(): Promise<void> {
   if (!RepitchAudioModule.beatFollowStop) return Promise.resolve();
   return RepitchAudioModule.beatFollowStop();
 }
-export function beatFollowConfigure(clickAudible: boolean, beatsPerBar: number, volume: number): Promise<void> {
+export function beatFollowConfigure(clickAudible: boolean, beatsPerBar: number, downbeatIndex: number, volume: number): Promise<void> {
   if (!RepitchAudioModule.beatFollowConfigure) return Promise.resolve();
-  return RepitchAudioModule.beatFollowConfigure(clickAudible, beatsPerBar, volume);
+  return RepitchAudioModule.beatFollowConfigure(clickAudible, beatsPerBar, downbeatIndex, volume);
 }
 
 // --- Tuner (microphone) ---

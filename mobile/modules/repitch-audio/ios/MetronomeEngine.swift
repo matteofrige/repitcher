@@ -39,6 +39,7 @@ final class MetronomeEngine {
   // Beat follow state
   private var followBeats: [Double] = []
   private var followBeatsPerBar = 4
+  private var followDownbeat = 0
   private var followClickAudible = true
   private var followVolume = 0.8
   private var followNextBeat = 0
@@ -97,10 +98,11 @@ final class MetronomeEngine {
 
   // MARK: - Beat follow
 
-  func startFollow(beats: [Double], beatsPerBar: Int, clickAudible: Bool, volume: Double) throws {
+  func startFollow(beats: [Double], beatsPerBar: Int, downbeatIndex: Int, clickAudible: Bool, volume: Double) throws {
     if isActive { stop() }  // mutually exclusive with the fixed-tempo metronome
     followBeats = beats
     followBeatsPerBar = max(1, beatsPerBar)
+    followDownbeat = max(0, downbeatIndex)
     followClickAudible = clickAudible
     followVolume = volume
     if isFollowing {
@@ -120,9 +122,10 @@ final class MetronomeEngine {
     startTimer()
   }
 
-  func updateFollowOptions(clickAudible: Bool, beatsPerBar: Int, volume: Double) {
+  func updateFollowOptions(clickAudible: Bool, beatsPerBar: Int, downbeatIndex: Int, volume: Double) {
     followClickAudible = clickAudible
     followBeatsPerBar = max(1, beatsPerBar)
+    followDownbeat = max(0, downbeatIndex)
     followVolume = volume
     guard isFollowing else { return }
     core.configureFollow(withBeatsPerBar: followBeatsPerBar, volume: volume)
@@ -184,8 +187,9 @@ final class MetronomeEngine {
       if dt > followLookAhead { break }
       if dt < -followLateTolerance { followNextBeat += 1; continue }
       let beatHost = snap.hostSeconds + dt + pitchLatency
-      let accent = i % followBeatsPerBar == 0
-      let inBar = i % followBeatsPerBar
+      // Bar position counted from the user-chosen downbeat (can be negative before it).
+      let inBar = ((i - followDownbeat) % followBeatsPerBar + followBeatsPerBar) % followBeatsPerBar
+      let accent = inBar == 0
       if !core.scheduleClick(atHostSeconds: beatHost, accent: accent, beat: inBar) { break }  // retry next pump
       followNextBeat += 1
       onBeat?(inBar, accent, epochMs + (beatHost + latency - now) * 1000, true)
@@ -245,7 +249,7 @@ final class MetronomeEngine {
       if resumeFollowAfterInterruption {
         resumeFollowAfterInterruption = false
         if shouldResume {
-          try? startFollow(beats: followBeats, beatsPerBar: followBeatsPerBar, clickAudible: followClickAudible, volume: followVolume)
+          try? startFollow(beats: followBeats, beatsPerBar: followBeatsPerBar, downbeatIndex: followDownbeat, clickAudible: followClickAudible, volume: followVolume)
         }
         return
       }

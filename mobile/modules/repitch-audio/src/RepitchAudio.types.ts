@@ -52,6 +52,8 @@ export type TuningDetection = {
 
 export type BeatDetection = {
   valid: boolean;
+  /** Valid but low confidence: the user should check by ear. */
+  uncertain: boolean;
   /** Median tempo. */
   bpm: number;
   /** 0…1 */
