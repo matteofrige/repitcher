@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import * as RepitchAudio from '../../modules/repitch-audio';
 import { ensureBeats, getTools, getTrack, rephaseBeats, subscribeLibrary, type TrackBeats } from './library';
@@ -143,3 +143,32 @@ function subscribe(l: () => void) {
   };
 }
 export const useBeatFollow = () => useSyncExternalStore(subscribe, () => state, () => state);
+
+/** Re-runs the detection / start for the wanted track (e.g. after a failed analysis). */
+export function retryBeatFollow() {
+  if (wantedId !== null && startedFor !== wantedId) void begin(wantedId, ++token);
+}
+
+/** Bar position (0-based) of the beat currently sounding while following, else -1. */
+export function useFollowBeat(enabled: boolean): number {
+  const [active, setActive] = useState(-1);
+  useEffect(() => {
+    if (!enabled) return;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const sub = RepitchAudio.addMetronomeBeatListener((e) => {
+      if (!e.follow) return;
+      const t = setTimeout(() => {
+        timers.delete(t);
+        setActive(e.beat);
+      }, Math.max(0, e.atMs - Date.now()));
+      timers.add(t);
+    });
+    return () => {
+      sub.remove();
+      timers.forEach(clearTimeout);
+      timers.clear();
+      setActive(-1);
+    };
+  }, [enabled]);
+  return enabled ? active : -1;
+}

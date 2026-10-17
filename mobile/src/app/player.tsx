@@ -5,7 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { s } from '../i18n';
-import { IconButton } from '../components/Controls';
+import { BeatDots } from '../components/BeatDots';
+import { BeatFlash } from '../components/BeatFlash';
+import { BeatsPerBarPicker } from '../components/BeatsPerBarPicker';
+import { Button, IconButton } from '../components/Controls';
 import { Paper } from '../components/Paper';
 import { PromptHost } from '../components/PromptHost';
 import { Toggle } from '../components/Toggle';
@@ -13,8 +16,9 @@ import { SheetStatusBar } from '../components/SheetStatusBar';
 import { SeekBar } from '../components/SeekBar';
 import { FineTuneControl, TranspositionControl } from '../components/TuningControls';
 import * as RepitchAudio from '../../modules/repitch-audio';
-import { useBeatFollow } from '../lib/beatFollow';
+import { retryBeatFollow, useBeatFollow, useFollowBeat } from '../lib/beatFollow';
 import { effectiveTuning, setTools, sourceHzOf, useGlobalTuning, useTools, useTrack } from '../lib/library';
+import { setMetronome } from '../lib/metronome';
 import { formatResultLine, formatSettingsSummary } from '../lib/tuning';
 import { SourceLa } from '../components/SourceLa';
 import {
@@ -46,22 +50,24 @@ function Section({ n, title, text, children }: { n: number; title: string; text:
 
 /** Metronome that follows the track's own beats (hidden where the platform has no beat tracker). */
 function BeatFollowSection({ bpm }: { bpm: number | null }) {
-  const { follow, followClick, followFlash } = useTools();
+  const { follow, followClick, followFlash, beatsPerBar } = useTools();
   const { active, analysing, error, uncertain } = useBeatFollow();
+  const { isPlaying } = usePlayer();
+  const beat = useFollowBeat(follow && active);
   const colors = useColors();
   if (!RepitchAudio.beatFollowAvailable()) return null;
-  const status = analysing
-    ? s.beatFollow.analysing
-    : error === 'invalid'
-      ? s.beatFollow.invalid
-      : error === 'failed'
-        ? s.beatFollow.failed
-        : active && bpm
-          ? uncertain
-            ? s.beatFollow.uncertain
-            : s.beatFollow.following(Math.round(bpm))
-          : null;
   const row = { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 } as const;
+  const textButton = (label: string, onPress: () => void, a11y?: string) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={a11y ?? label}
+      onPress={onPress}
+      style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', opacity: pressed ? 0.55 : 1 })}>
+      <T variant="callout" tone="tint">
+        {label}
+      </T>
+    </Pressable>
+  );
   return (
     <View
       style={{
@@ -76,34 +82,85 @@ function BeatFollowSection({ bpm }: { bpm: number | null }) {
         </T>
         <Toggle value={follow} accessibilityLabel={s.beatFollow.toggleA11y} onValueChange={(v) => setTools({ follow: v })} />
       </View>
+      <T variant="footnote">{s.beatFollow.footnote}</T>
       {follow ? (
-        <View style={{ gap: 2, paddingLeft: 12 }}>
-          <View style={row}>
-            <T variant="callout">{s.beatFollow.click}</T>
-            <Toggle value={followClick} accessibilityLabel={s.beatFollow.clickA11y} onValueChange={(v) => setTools({ followClick: v })} />
+        <View style={{ gap: 12, paddingTop: 8 }}>
+          <View
+            accessibilityLiveRegion="polite"
+            style={{
+              gap: 6,
+              padding: 12,
+              borderRadius: 12,
+              borderWidth: StyleSheet.hairlineWidth * 2,
+              borderColor: colors.rule,
+            }}>
+            {analysing ? (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <ActivityIndicator size="small" color={colors.inkSecondary} />
+                  <T variant="callout" style={{ flex: 1 }}>
+                    {s.beatFollow.analysing}
+                  </T>
+                </View>
+                <T variant="footnote">{s.beatFollow.analysingNote}</T>
+              </>
+            ) : error === 'invalid' ? (
+              <>
+                <T variant="callout" tone="danger">
+                  {s.beatFollow.invalid}
+                </T>
+                <T variant="footnote">{s.beatFollow.invalidNote}</T>
+                {textButton(s.beatFollow.tapTempo, () => router.push('/beat-edit' as Href))}
+              </>
+            ) : error === 'failed' ? (
+              <>
+                <T variant="callout" tone="danger">
+                  {s.beatFollow.failed}
+                </T>
+                {textButton(s.beatFollow.retry, retryBeatFollow)}
+              </>
+            ) : active ? (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 28 }}>
+                  <BeatDots count={beatsPerBar} active={beat} size="small" />
+                  {bpm ? <T variant="callout">{s.beatFollow.bpm(Math.round(bpm))}</T> : null}
+                </View>
+                <T variant="footnote">{isPlaying ? s.beatFollow.followingNow : s.beatFollow.pressPlay}</T>
+                {uncertain ? <T variant="footnote">{s.beatFollow.uncertainNote}</T> : null}
+              </>
+            ) : null}
           </View>
-          <View style={row}>
-            <T variant="callout">{s.beatFollow.flash}</T>
-            <Toggle value={followFlash} accessibilityLabel={s.beatFollow.flashA11y} onValueChange={(v) => setTools({ followFlash: v })} />
-          </View>
-          {status ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 }} accessibilityLiveRegion="polite">
-              {analysing ? <ActivityIndicator size="small" color={colors.inkSecondary} /> : null}
-              <T variant="footnote" tone={error ? 'danger' : undefined}>
-                {status}
+
+          <View>
+            <View style={row}>
+              <T variant="callout" style={{ flex: 1 }}>
+                {s.beatFollow.clickLabel}
               </T>
+              <Toggle value={followClick} accessibilityLabel={s.beatFollow.clickA11y} onValueChange={(v) => setTools({ followClick: v })} />
             </View>
-          ) : null}
-          {!analysing ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={s.beatFollow.correctA11y}
-              onPress={() => router.push('/beat-edit' as Href)}
-              style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', opacity: pressed ? 0.55 : 1 })}>
-              <T variant="callout" tone="tint">
-                {s.beatFollow.correct}
+            <View style={row}>
+              <T variant="callout" style={{ flex: 1 }}>
+                {s.beatFollow.flashLabel}
               </T>
-            </Pressable>
+              <Toggle value={followFlash} accessibilityLabel={s.beatFollow.flashA11y} onValueChange={(v) => setTools({ followFlash: v })} />
+            </View>
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <T variant="callout">{s.beatFollow.beatsPerBar}</T>
+            <BeatsPerBarPicker value={beatsPerBar} onChange={(n) => setMetronome({ beatsPerBar: n })} />
+            <T variant="footnote">{s.beatFollow.beatsPerBarNote}</T>
+          </View>
+
+          {!analysing ? (
+            <View style={{ gap: 6 }}>
+              <Button
+                kind="secondary"
+                label={s.beatFollow.correct}
+                onPress={() => router.push('/beat-edit' as Href)}
+              />
+              <T variant="footnote">{s.beatFollow.correctNote}</T>
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -315,6 +372,7 @@ export default function PlayerScreen() {
         </View>
         </View>
       </View>
+      <BeatFlash />
       <PromptHost />
     </Paper>
   );
