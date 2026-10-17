@@ -106,7 +106,7 @@ object TuningDetector {
     }
   }
 
-  private fun setSource(extractor: MediaExtractor, context: Context, uriString: String) {
+  internal fun setSource(extractor: MediaExtractor, context: Context, uriString: String) {
     val uri = Uri.parse(uriString)
     when (uri.scheme) {
       null, "" -> extractor.setDataSource(uriString)

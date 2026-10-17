@@ -32,6 +32,11 @@ android {
     }
   }
 
+  // Asked for BeatThis.onnx to be stored uncompressed (the app module's own aapt settings win, so nothing relies on it).
+  androidResources {
+    noCompress += ["onnx"]
+  }
+
   lint {
     abortOnError false
   }
@@ -45,4 +50,6 @@ dependencies {
   // ListenableFuture (MediaController.buildAsync) and ContextCompat.
   implementation "com.google.guava:guava:33.4.8-android"
   implementation "androidx.core:core-ktx:1.15.0"
+  // Beat This! network (src/main/assets/BeatThis.onnx), CPU execution provider.
+  implementation "com.microsoft.onnxruntime:onnxruntime-android:1.23.2"
 }

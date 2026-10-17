@@ -60,7 +60,7 @@ export type BeatDetection = {
   confidence: number;
   /** Beat positions in seconds, ascending. */
   beats: number[];
-  /** 'neural' = Beat This! network (iOS); 'spectral' = spectral-flux tracker (fallback / Android). */
+  /** 'neural' = Beat This! network (Core ML on iOS, ONNX Runtime on Android); 'spectral' = spectral-flux tracker (fallback). */
   method: 'neural' | 'spectral';
   /** Index (0…beatsPerBar-1) of the beat that opens the bar; 0 when unknown (spectral). */
   downbeatIndex: number;

@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # => four levels up (cpp -> main -> src -> android -> module root).
 set(RP_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../cpp)
 
-add_library(repitchaudio SHARED repitch_jni.cpp)
+add_library(repitchaudio SHARED repitch_jni.cpp beats_jni.cpp)
 
 # Same include paths as ios/RepitchAudio.podspec.
 # signalsmith-stretch.h includes "signalsmith-linear/stft.h" => both the stretch dir and the vendor

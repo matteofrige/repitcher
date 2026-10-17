@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.ForwardingAudioSink
 
 /**
  * Process-wide owner of the ONE ExoPlayer, shared by the Expo module (JS API) and [PlaybackService]
@@ -78,7 +79,7 @@ object PlayerHolder {
   }
 
   /** DefaultRenderersFactory whose audio sink runs [PitchAudioProcessor]. */
-  private class PitchRenderersFactory(context: Context, private val processor: AudioProcessor) :
+  private class PitchRenderersFactory(context: Context, private val processor: PitchAudioProcessor) :
     DefaultRenderersFactory(context) {
     override fun buildAudioSink(
       context: Context,
@@ -86,9 +87,22 @@ object PlayerHolder {
       enableAudioOutputPlaybackParams: Boolean
     ): AudioSink? {
       // The processor converts any PCM input to float itself, so the float-output flags are not needed.
-      return DefaultAudioSink.Builder(context)
-        .setAudioProcessors(arrayOf(processor))
+      val sink = DefaultAudioSink.Builder(context)
+        .setAudioProcessors(arrayOf<AudioProcessor>(processor))
         .build()
+      return TimestampingSink(sink, this.processor)
+    }
+  }
+
+  /**
+   * Tells [PitchAudioProcessor] the file time of every buffer the sink is about to push through the processors
+   * (AudioProcessor.queueInput carries no timestamps). The beat-follow clicks are placed sample-accurately from the
+   * first buffer after each flush.
+   */
+  private class TimestampingSink(sink: AudioSink, private val processor: PitchAudioProcessor) : ForwardingAudioSink(sink) {
+    override fun handleBuffer(buffer: java.nio.ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
+      processor.lastPtsUs = presentationTimeUs
+      return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
     }
   }
 

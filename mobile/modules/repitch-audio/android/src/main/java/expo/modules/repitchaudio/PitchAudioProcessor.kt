@@ -43,6 +43,33 @@ class PitchAudioProcessor : BaseAudioProcessor() {
   private var appliedSemitones = Float.NaN  // NaN forces the first stretchSetPitch
   private var resetPending = false
 
+  /**
+   * File time (µs) of the buffer currently entering the sink, set by [PlayerHolder]'s sink wrapper just before the
+   * sink pushes it through the processors. The first buffer after a flush anchors the beat-follow clicks.
+   */
+  @Volatile
+  var lastPtsUs: Long = 0L
+
+  /** Stretcher delay (input + output), seconds. The audio heard at sink position p is the file at p - latency. */
+  @Volatile
+  var latencySeconds: Double = 0.0
+    private set
+
+  /** Click mixer for beat follow (native). Lives as long as the process; null if the library is missing. */
+  private val follow: Long = if (NativeBridge.available) NativeBridge.followCreate() else 0L
+  private var latencyFrames = 0
+  private var segmentPending = true
+
+  /** Main thread. Beats = file seconds, ascending. */
+  fun setFollowBeats(beats: DoubleArray) {
+    if (follow != 0L) NativeBridge.followSetBeats(follow, beats)
+  }
+
+  /** Main thread. */
+  fun configureFollow(on: Boolean, clickAudible: Boolean, beatsPerBar: Int, downbeatIndex: Int, volume: Double) {
+    if (follow != 0L) NativeBridge.followConfigure(follow, on, clickAudible, beatsPerBar, downbeatIndex, volume)
+  }
+
   private var inScratch = FloatArray(0)
   private var outScratch = FloatArray(0)
 
@@ -64,6 +91,7 @@ class PitchAudioProcessor : BaseAudioProcessor() {
   override fun onFlush() {
     // Seek / new stream: drop the stretcher's internal overlap state (applied in the next queueInput).
     resetPending = true
+    segmentPending = true
   }
 
   override fun onReset() {
@@ -87,6 +115,11 @@ class PitchAudioProcessor : BaseAudioProcessor() {
       NativeBridge.stretchReset(handle)
       resetPending = false
     }
+    if (segmentPending) {
+      // First buffer after a flush: its file time is the sink's presentation timestamp.
+      if (follow != 0L) NativeBridge.followSegment(follow, lastPtsUs / 1e6, latencyFrames)
+      segmentPending = false
+    }
     val semis = semitones
     if (semis != appliedSemitones) {
       NativeBridge.stretchSetPitch(handle, semis)
@@ -106,6 +139,8 @@ class PitchAudioProcessor : BaseAudioProcessor() {
       val samples = n * channels
       readSamples(inputBuffer, cfgEncoding, inScratch, samples)
       NativeBridge.stretchProcess(handle, inScratch, outScratch, n)  // n frames in, n frames out
+      // Beat-follow clicks go in AFTER the pitch shift (not shifted), at output frame = beat + stretcher latency.
+      if (follow != 0L) NativeBridge.followMix(follow, outScratch, n, channels)
       for (i in 0 until samples) {
         val v = (outScratch[i] * 32767f).coerceIn(-32768f, 32767f)
         out.putShort(v.toInt().toShort())
@@ -126,6 +161,10 @@ class PitchAudioProcessor : BaseAudioProcessor() {
     builtSampleRate = cfgSampleRate
     appliedSemitones = Float.NaN
     resetPending = false
+    latencyFrames = if (handle != 0L) NativeBridge.stretchLatency(handle) else 0
+    latencySeconds = if (cfgSampleRate > 0) latencyFrames.toDouble() / cfgSampleRate else 0.0
+    if (follow != 0L) NativeBridge.followPrepare(follow, cfgSampleRate.toDouble())
+    segmentPending = true
   }
 
   private fun destroyHandle() {

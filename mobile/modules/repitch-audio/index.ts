@@ -87,7 +87,7 @@ export function addMetronomeBeatListener(cb: (e: MetronomeBeatEvent) => void): E
 
 // --- Beat follow (metronome on the track's own beats) ---
 
-/** False where the native side has no beat tracker (older binary, Android for now). */
+/** False where the native side has no beat tracker (older binary). */
 export function beatFollowAvailable(): boolean {
   return typeof RepitchAudioModule.detectBeats === 'function' && typeof RepitchAudioModule.beatFollowStart === 'function';
 }
@@ -106,7 +106,7 @@ export function beatDownbeatPhase(uri: string, beats: number[], beatsPerBar: num
 }
 /**
  * Track position (seconds) audible at the moment of a touch. `uptimeMs` is RN's `nativeEvent.timestamp`
- * (iOS: system uptime in ms, same clock as the audio host time); output + pitch latency already subtracted.
+ * (iOS: system uptime in ms, same clock as the audio host time; Android: SystemClock.uptimeMillis); output + pitch latency already subtracted.
  * Null when the track isn't playing or the platform has no support.
  */
 export function beatTapPosition(uptimeMs: number): Promise<number | null> {

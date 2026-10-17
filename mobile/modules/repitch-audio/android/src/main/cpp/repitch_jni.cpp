@@ -196,6 +196,13 @@ RP_JNI(void, stretchProcess)(JNIEnv* env, jobject, jlong handle, jfloatArray inp
   }
 }
 
+// Delay the stretcher adds to the signal (input + output latency), in frames (iOS: latencySeconds).
+RP_JNI(jint, stretchLatency)(JNIEnv*, jobject, jlong handle) {
+  auto* ctx = fromHandle<StretchCtx>(handle);
+  if (ctx == nullptr) return 0;
+  return (jint)(ctx->stretch.inputLatency() + ctx->stretch.outputLatency());
+}
+
 RP_JNI(void, stretchReset)(JNIEnv*, jobject, jlong handle) {
   auto* ctx = fromHandle<StretchCtx>(handle);
   if (ctx != nullptr) ctx->stretch.reset();
