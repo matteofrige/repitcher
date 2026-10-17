@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '../components/BrandMark';
 import { Hairline } from '../components/Controls';
 import { Paper } from '../components/Paper';
+import { PromptHost } from '../components/PromptHost';
 import { APP_STORE_ID, SITE_URL } from '../config';
 import { lang, s } from '../i18n';
 import { appVersion, sendProblemReport, sendSuggestion, supportEmailConfigured } from '../lib/feedback';
@@ -207,6 +208,7 @@ export default function AboutScreen() {
           </Section>
         </ScrollView>
       </SafeAreaView>
+      <PromptHost />
     </Paper>
   );
 }

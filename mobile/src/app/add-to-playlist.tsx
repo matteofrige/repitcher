@@ -5,6 +5,7 @@ import { FlatList, Pressable, StyleSheet } from 'react-native';
 import { s } from '../i18n';
 import { Hairline } from '../components/Controls';
 import { Paper } from '../components/Paper';
+import { PromptHost } from '../components/PromptHost';
 import { HeaderTextButton, ScreenHeader } from '../components/ScreenHeader';
 import { SheetStatusBar } from '../components/SheetStatusBar';
 import { TrackRow } from '../components/TrackRow';
@@ -100,6 +101,7 @@ function PickTracks({ playlistId }: { playlistId: string }) {
           />
         )}
       />
+      <PromptHost />
     </Paper>
   );
 }
@@ -170,6 +172,7 @@ function PickPlaylist({ ids, moveFrom, indices }: { ids: string[]; moveFrom?: st
           );
         }}
       />
+      <PromptHost />
     </Paper>
   );
 }

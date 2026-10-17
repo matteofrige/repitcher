@@ -25,14 +25,11 @@ import { T, fonts } from '../theme/type';
 
 /**
  * In-app UI for showPrompt / showActionSheet / showAlert, the same on iOS and Android.
- * Mount once, inside ThemeProvider.
+ * Mount once in the root, and once in each screen presented as a native modal (inside ThemeProvider).
  */
 export function PromptHost() {
   const [req, setReq] = useState<HostRequest | null>(null);
-  useEffect(() => {
-    registerHost(setReq);
-    return () => registerHost(null);
-  }, []);
+  useEffect(() => registerHost(setReq), []);
 
   const finish = (r: HostRequest, value: string | number | null) => {
     clearCurrent(r);

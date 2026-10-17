@@ -7,6 +7,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } 
 import { s } from '../i18n';
 import { IconButton } from '../components/Controls';
 import { Paper } from '../components/Paper';
+import { PromptHost } from '../components/PromptHost';
 import { SheetStatusBar } from '../components/SheetStatusBar';
 import { SeekBar } from '../components/SeekBar';
 import { FineTuneControl, TranspositionControl } from '../components/TuningControls';
@@ -242,6 +243,7 @@ export default function PlayerScreen() {
         </View>
         </View>
       </View>
+      <PromptHost />
     </Paper>
   );
 }

@@ -31,25 +31,51 @@ export type HostRequest =
   | { id: number; kind: 'sheet'; opts: SheetOptions; resolve: (v: number | null) => void }
   | { id: number; kind: 'alert'; opts: AlertOptions & { buttons: AlertButton[] }; resolve: (v: number | null) => void };
 
-// The UI (both platforms) lives in <PromptHost/>, mounted once in the root layout; it registers here.
-let handler: ((r: HostRequest | null) => void) | null = null;
+// The UI (both platforms) lives in <PromptHost/>. One is mounted in the root layout and one in each screen
+// presented as a native modal (an RN Modal can't present over a sheet that is already presenting).
+// Hosts form a stack: requests go to the top one only.
+type HostSetter = (r: HostRequest | null) => void;
+const hosts: HostSetter[] = [];
 let current: HostRequest | null = null;
+let currentHost: HostSetter | null = null;
 let seq = 0;
 
-export function registerHost(h: ((r: HostRequest | null) => void) | null) {
-  handler = h;
+/** Registers a host on top of the stack; returns the function that unregisters it. */
+export function registerHost(h: HostSetter): () => void {
+  // A request open in another host would be hidden under the new one: cancel it.
+  if (current && currentHost) cancelCurrent();
+  hosts.push(h);
+  return () => {
+    const i = hosts.lastIndexOf(h);
+    if (i >= 0) hosts.splice(i, 1);
+    if (currentHost === h) cancelCurrent();
+  };
+}
+
+function cancelCurrent() {
+  const r = current;
+  const h = currentHost;
+  current = null;
+  currentHost = null;
+  h?.(null);
+  (r?.resolve as ((v: null) => void) | undefined)?.(null);
 }
 
 function present(r: HostRequest) {
+  const top = hosts[hosts.length - 1];
   // A newer request replaces an open one (the old one resolves as cancelled).
-  (current?.resolve as ((v: null) => void) | undefined)?.(null);
+  cancelCurrent();
   current = r;
-  handler?.(r);
+  currentHost = top;
+  top(r);
 }
 
 /** Called by the host once the dialog is gone. */
 export function clearCurrent(r: HostRequest) {
-  if (current === r) current = null;
+  if (current === r) {
+    current = null;
+    currentHost = null;
+  }
 }
 
 /** Text prompt: resolves with the typed text, or null if cancelled. */
@@ -57,7 +83,7 @@ export function showPrompt(opts: PromptOptions): Promise<string | null> {
   const cancelLabel = opts.cancelLabel ?? s.common.cancel;
   const confirmLabel = opts.confirmLabel ?? s.common.save;
   return new Promise((resolve) => {
-    if (!handler) {
+    if (!hosts.length) {
       resolve(null);
       return;
     }
@@ -69,7 +95,7 @@ export function showPrompt(opts: PromptOptions): Promise<string | null> {
 export function showActionSheet(opts: SheetOptions): Promise<number | null> {
   const cancelLabel = opts.cancelLabel ?? s.common.cancel;
   return new Promise((resolve) => {
-    if (!handler) {
+    if (!hosts.length) {
       resolve(null);
       return;
     }
@@ -81,7 +107,7 @@ export function showActionSheet(opts: SheetOptions): Promise<number | null> {
 export function showAlert(opts: AlertOptions): Promise<number | null> {
   const buttons = opts.buttons?.length ? opts.buttons : [{ label: s.common.ok }];
   return new Promise((resolve) => {
-    if (!handler) {
+    if (!hosts.length) {
       resolve(null);
       return;
     }
