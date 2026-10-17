@@ -2,6 +2,7 @@ import type { EventSubscription } from 'expo-modules-core';
 
 import type {
   BeatDetection,
+  DownbeatPhase,
   MetronomeBeatEvent,
   MetronomeConfig,
   PlayedSecondsEvent,
@@ -15,6 +16,7 @@ import RepitchAudioModule from './src/RepitchAudioModule';
 
 export type {
   BeatDetection,
+  DownbeatPhase,
   MetronomeBeatEvent,
   MetronomeConfig,
   PlayedSecondsEvent,
@@ -90,9 +92,17 @@ export function beatFollowAvailable(): boolean {
   return typeof RepitchAudioModule.detectBeats === 'function' && typeof RepitchAudioModule.beatFollowStart === 'function';
 }
 /** Finds the beats of a whole file in the background (can take several seconds). */
-export function detectBeats(uri: string, anchors: number[] = []): Promise<BeatDetection | null> {
+export function detectBeats(uri: string, anchors: number[] = [], beatsPerBar = 4): Promise<BeatDetection | null> {
   if (!RepitchAudioModule.detectBeats) return Promise.resolve(null);
-  return RepitchAudioModule.detectBeats(uri, anchors);
+  return RepitchAudioModule.detectBeats(uri, anchors, beatsPerBar);
+}
+/**
+ * Re-phases the bar for another meter from the cached neural activation (no network run).
+ * Null when there is no cache for the file (spectral detection, cache cleared, or an older binary).
+ */
+export function beatDownbeatPhase(uri: string, beats: number[], beatsPerBar: number): Promise<DownbeatPhase | null> {
+  if (!RepitchAudioModule.beatDownbeatPhase) return Promise.resolve(null);
+  return RepitchAudioModule.beatDownbeatPhase(uri, beats, beatsPerBar);
 }
 /**
  * Track position (seconds) audible at the moment of a touch. `uptimeMs` is RN's `nativeEvent.timestamp`

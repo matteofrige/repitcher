@@ -54,6 +54,8 @@ export const extras: ExtrasStrings = {
     creditsHeader: 'Credits & licences',
     audioEngine: 'Audio engine',
     audioEngineValue: 'Signalsmith Stretch, by Signalsmith Audio (MIT licence)',
+    beatDetection: 'Beat detection',
+    beatDetectionValue: 'Beat This! — Institute of Computational Perception, JKU Linz (MIT licence)',
     licenseHide: 'Hide the licence',
     licenseShow: 'Show the licence',
     fontsLabel: 'Typefaces',

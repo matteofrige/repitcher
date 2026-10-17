@@ -60,7 +60,15 @@ export type BeatDetection = {
   confidence: number;
   /** Beat positions in seconds, ascending. */
   beats: number[];
+  /** 'neural' = Beat This! network (iOS); 'spectral' = spectral-flux tracker (fallback / Android). */
+  method: 'neural' | 'spectral';
+  /** Index (0…beatsPerBar-1) of the beat that opens the bar; 0 when unknown (spectral). */
+  downbeatIndex: number;
+  /** 0…1: how clearly the downbeat phase wins over the others; 0 when unknown. */
+  downbeatMargin: number;
 };
+
+export type DownbeatPhase = { downbeatIndex: number; margin: number };
 
 export type PlayerStatus = {
   position: number;

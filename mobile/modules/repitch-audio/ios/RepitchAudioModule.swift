@@ -87,15 +87,24 @@ public class RepitchAudioModule: Module {
     }
 
     // Beat positions of the whole file (streamed decode), off the main thread.
-    AsyncFunction("detectBeats") { (uri: String, anchors: [Double], promise: Promise) in
+    AsyncFunction("detectBeats") { (uri: String, anchors: [Double], beatsPerBar: Int, promise: Promise) in
       let url = URL(string: uri).flatMap { $0.scheme != nil ? $0 : nil } ?? URL(fileURLWithPath: uri)
       DispatchQueue.global(qos: .userInitiated).async {
         do {
-          let result: [String: Any] = try RPBeatDetector.detectBeatsInFile(at: url, anchors: anchors.map { NSNumber(value: $0) })
+          let result: [String: Any] = try RPBeatDetector.detectBeatsInFile(at: url, anchors: anchors.map { NSNumber(value: $0) }, beatsPerBar: beatsPerBar)
           promise.resolve(result)
         } catch {
           promise.reject("E_DETECT", error.localizedDescription)
         }
+      }
+    }
+
+    // Downbeat phase from the cached neural activation (no network run). Nil when the file has no cache.
+    AsyncFunction("beatDownbeatPhase") { (uri: String, beats: [Double], beatsPerBar: Int, promise: Promise) in
+      let url = URL(string: uri).flatMap { $0.scheme != nil ? $0 : nil } ?? URL(fileURLWithPath: uri)
+      DispatchQueue.global(qos: .userInitiated).async {
+        let result = RPBeatDetector.downbeatPhaseForFile(at: url, beats: beats.map { NSNumber(value: $0) }, beatsPerBar: beatsPerBar)
+        promise.resolve(result)
       }
     }
 

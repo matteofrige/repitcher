@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import * as RepitchAudio from '../../modules/repitch-audio';
-import { ensureBeats, getTools, getTrack, subscribeLibrary, type TrackBeats } from './library';
+import { ensureBeats, getTools, getTrack, rephaseBeats, subscribeLibrary, type TrackBeats } from './library';
 import { isMetronomeRunning, stopMetronome } from './metronome';
 import { currentTrackId, subscribePlayer } from './player';
 
@@ -82,6 +82,8 @@ async function begin(id: string, mine: number) {
 /** Brings the native side in line with settings + current track. Cheap: called on every library/player change. */
 function reconcile() {
   const id = currentTrackId() ?? null;
+  // A new meter moves the automatic "1" (from the cached activation); the update comes back through the library.
+  if (id !== null) void rephaseBeats(id);
   const want = RepitchAudio.beatFollowAvailable() && getTools().follow && id !== null ? id : null;
   if (want === wantedId) {
     if (startedFor === null && want !== null && state.error === 'invalid' && getTrack(want)?.beats?.valid) {

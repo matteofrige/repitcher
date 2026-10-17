@@ -55,6 +55,8 @@ export const extras = {
     creditsHeader: 'Riconoscimenti',
     audioEngine: 'Motore audio',
     audioEngineValue: 'Signalsmith Stretch, di Signalsmith Audio (licenza MIT)',
+    beatDetection: 'Rilevamento del ritmo',
+    beatDetectionValue: 'Beat This! — Institute of Computational Perception, JKU Linz (licenza MIT)',
     licenseHide: 'Nascondi la licenza',
     licenseShow: 'Mostra la licenza',
     fontsLabel: 'Caratteri tipografici',

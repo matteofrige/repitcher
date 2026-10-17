@@ -51,7 +51,16 @@ export type TrackBeats = {
   anchors: number[];
   /** Index in `times` of a beat that is a "1" (accent); the bar counts from it. */
   downbeatIndex: number;
+  /** How the beats were found: Beat This! network (iOS) or the spectral-flux tracker. */
+  method: 'neural' | 'spectral';
+  /** The user chose the "1" (setDownbeatAt): automatic re-phasing (new meter, re-analysis) leaves it alone. */
+  downbeatManual: boolean;
+  /** Beats per bar the automatic `downbeatIndex` was computed for (neural only); 0 = not computed. */
+  phaseBar: number;
 };
+
+/** The automatic downbeat phase is applied only when it clearly beats the other phases. */
+const DOWNBEAT_MIN_MARGIN = 0.3;
 
 /** Settings of a backed-up track that has no counterpart in the library yet. */
 export type BackupTrack = {
@@ -149,6 +158,10 @@ function cleanBeats(raw: any, duration: number): TrackBeats | null {
     times,
     anchors: cleanTimes(raw.anchors, limit, MAX_ANCHORS),
     downbeatIndex: Math.max(0, Math.min(Math.max(0, times.length - 1), db)),
+    method: raw.method === 'neural' ? 'neural' : 'spectral',
+    // Data saved before the flag existed: a non-zero "1" was the user's choice.
+    downbeatManual: typeof raw.downbeatManual === 'boolean' ? raw.downbeatManual : db > 0,
+    phaseBar: typeof raw.phaseBar === 'number' && Number.isFinite(raw.phaseBar) ? Math.max(0, Math.min(12, Math.round(raw.phaseBar))) : 0,
   };
 }
 const MAX_BEATS = 20000;
@@ -714,12 +727,22 @@ function runDetection(trackId: string, anchors: number[], opts: { markPending: b
     if (opts.markPending) updateTrack(trackId, { beatDetection: 'pending' });
     let beats: TrackBeats | null = null;
     try {
-      const r = await RepitchAudio.detectBeats(trackUri(track), anchors);
-      beats = r ? cleanBeats({ ...r, times: r.beats, anchors }, track.duration) : null;
-      if (beats && opts.keepDownbeat && before && before.times.length > 0) {
-        // Same musical "1": the new beat closest to the old downbeat.
-        const i = nearestBeatIndex(beats.times, before.times[Math.min(before.downbeatIndex, before.times.length - 1)]);
-        beats.downbeatIndex = Math.max(0, i);
+      const bar = getTools().beatsPerBar;
+      const r = await RepitchAudio.detectBeats(trackUri(track), anchors, bar);
+      beats = r ? cleanBeats({ ...r, times: r.beats, anchors, downbeatManual: false, downbeatIndex: 0 }, track.duration) : null;
+      if (beats && r) {
+        if (opts.keepDownbeat && before?.downbeatManual && before.times.length > 0) {
+          // The user's "1": the new beat closest to the old downbeat.
+          const i = nearestBeatIndex(beats.times, before.times[Math.min(before.downbeatIndex, before.times.length - 1)]);
+          beats.downbeatIndex = Math.max(0, i);
+          beats.downbeatManual = true;
+        } else if (beats.method === 'neural') {
+          beats.downbeatIndex = (r.downbeatMargin ?? 0) > DOWNBEAT_MIN_MARGIN ? Math.max(0, Math.min(beats.times.length - 1, Math.round(r.downbeatIndex ?? 0))) : 0;
+          beats.phaseBar = bar;
+        } else if (opts.keepDownbeat && before && before.times.length > 0 && before.downbeatIndex > 0) {
+          const i = nearestBeatIndex(beats.times, before.times[Math.min(before.downbeatIndex, before.times.length - 1)]);
+          beats.downbeatIndex = Math.max(0, i);
+        }
       }
     } catch (e) {
       console.warn('RePitch: beat detection failed', e);
@@ -751,7 +774,7 @@ export function setBeatAnchors(trackId: string, anchors: number[]) {
   if (!track) return;
   const clean = cleanTimes(anchors, track.duration > 0 ? track.duration + 1 : Infinity, MAX_ANCHORS);
   // No analysis yet (or it failed): keep the taps in an empty placeholder so reanalyseBeats can use them.
-  const base: TrackBeats = track.beats ?? { bpm: 0, confidence: 0, valid: false, uncertain: false, times: [], anchors: [], downbeatIndex: 0 };
+  const base: TrackBeats = track.beats ?? { bpm: 0, confidence: 0, valid: false, uncertain: false, times: [], anchors: [], downbeatIndex: 0, method: 'spectral', downbeatManual: false, phaseBar: 0 };
   updateTrack(trackId, { beats: { ...base, anchors: clean } });
 }
 
@@ -790,7 +813,8 @@ export function doubleBeats(trackId: string) {
       if (i + 1 < t.length) out.push((t[i] + t[i + 1]) / 2);
     }
     const times = cleanTimes(out, Infinity, MAX_BEATS);
-    return { ...b, times, bpm: b.bpm * 2, downbeatIndex: Math.min(times.length - 1, b.downbeatIndex * 2) };
+    // The automatic phase refers to the old grid: from here on the "1" is fixed where it is.
+    return { ...b, times, bpm: b.bpm * 2, downbeatIndex: Math.min(times.length - 1, b.downbeatIndex * 2), downbeatManual: true };
   });
 }
 
@@ -801,7 +825,7 @@ export function halveBeats(trackId: string, phase: 0 | 1) {
     if (times.length < 2) return null;
     // The old "1" survives if it's kept; otherwise the nearest kept beat takes over.
     const oldTime = b.times[Math.min(b.downbeatIndex, b.times.length - 1)];
-    return { ...b, times, bpm: b.bpm / 2, downbeatIndex: Math.max(0, nearestBeatIndex(times, oldTime)) };
+    return { ...b, times, bpm: b.bpm / 2, downbeatIndex: Math.max(0, nearestBeatIndex(times, oldTime)), downbeatManual: true };
   });
 }
 
@@ -809,8 +833,34 @@ export function halveBeats(trackId: string, phase: 0 | 1) {
 export function setDownbeatAt(trackId: string, index: number) {
   editBeats(trackId, (b) => {
     if (!Number.isFinite(index) || b.times.length === 0) return null;
-    return { ...b, downbeatIndex: Math.max(0, Math.min(b.times.length - 1, Math.round(index))) };
+    return { ...b, downbeatIndex: Math.max(0, Math.min(b.times.length - 1, Math.round(index))), downbeatManual: true };
   });
+}
+
+const rephasing = new Set<string>();
+/**
+ * Neural beats only: recomputes the automatic "1" for the current beats per bar from the cached network
+ * activation (no network run). No-op for manual downbeats, spectral beats, or a phase already computed for this meter.
+ */
+export async function rephaseBeats(trackId: string): Promise<void> {
+  const track = getTrack(trackId);
+  const b = track?.beats;
+  const bar = getTools().beatsPerBar;
+  if (!track || !b || b.method !== 'neural' || b.downbeatManual || b.phaseBar === bar || b.times.length === 0) return;
+  if (rephasing.has(trackId)) return;
+  rephasing.add(trackId);
+  try {
+    const r = await RepitchAudio.beatDownbeatPhase(trackUri(track), b.times, bar);
+    const now = getTrack(trackId)?.beats;
+    // Beats edited meanwhile (re-analysis, double/half, manual "1"): leave them alone.
+    if (!now || now.times !== b.times || now.downbeatManual) return;
+    const idx = r && r.margin > DOWNBEAT_MIN_MARGIN ? Math.max(0, Math.min(b.times.length - 1, Math.round(r.downbeatIndex))) : 0;
+    updateTrack(trackId, { beats: { ...now, downbeatIndex: idx, phaseBar: bar } });
+  } catch (e) {
+    console.warn('RePitch: downbeat re-phasing failed', e);
+  } finally {
+    rephasing.delete(trackId);
+  }
 }
 
 // ---- settings backup / restore ----
