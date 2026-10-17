@@ -18,11 +18,12 @@ import kotlin.math.max
  * never stops the other (like iOS' shared mixer).
  *
  * Timing lives entirely in the core (frame counting). The thread only *reports* beats: each core event
- * carries the absolute frame at which the click starts; it is emitted when that frame is actually presented by
- * the device (AudioTrack.getTimestamp, falling back to the playback head), i.e. when the click leaves the
- * speaker and not when it was rendered. Events are emitted from this thread (sendEvent is thread-safe).
+ * carries the absolute frame at which the click starts; it is emitted right away (as early as it is known)
+ * together with `atMs`, the epoch time (JS `Date.now()` clock) at which that frame leaves the speaker, derived
+ * from AudioTrack.getTimestamp (falling back to the playback head). JS schedules the visuals on that time.
+ * Events are emitted from this thread (sendEvent is thread-safe).
  */
-class MetronomeEngine(private val onBeat: (beat: Int, accent: Boolean) -> Unit) {
+class MetronomeEngine(private val onBeat: (beat: Int, accent: Boolean, atMs: Double) -> Unit) {
   private val handle: Long = if (NativeBridge.available) NativeBridge.metroCreate() else 0L
 
   @Volatile
@@ -114,13 +115,6 @@ class MetronomeEngine(private val onBeat: (beat: Int, accent: Boolean) -> Unit) 
     Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
     val buf = FloatArray(BLOCK_FRAMES)
     val events = LongArray(32)
-    // Pending beats waiting to be presented: parallel arrays used as a small FIFO.
-    val pendingFrame = LongArray(256)
-    val pendingBeat = IntArray(256)
-    val pendingAccent = BooleanArray(256)
-    var head = 0
-    var tail = 0
-    var count = 0
     val ts = AudioTimestamp()
     try {
       track.play()
@@ -131,21 +125,13 @@ class MetronomeEngine(private val onBeat: (beat: Int, accent: Boolean) -> Unit) 
         if (written < 0) break
 
         val n = NativeBridge.metroPopEvents(handle, events)
-        for (i in 0 until n) {
-          if (count == pendingFrame.size) break  // cannot happen at ~10 beats/s; never block the audio loop
-          pendingFrame[tail] = events[i] shr 8
-          pendingBeat[tail] = (events[i] and 0x7F).toInt()
-          pendingAccent[tail] = (events[i] and 0x80) != 0L
-          tail = (tail + 1) % pendingFrame.size
-          count++
-        }
-        if (count > 0) {
-          val presented = presentedFrames(track, ts, sampleRate)
-          while (count > 0 && pendingFrame[head] <= presented) {
-            // Drop stale beats (> 1 s late) instead of bursting them.
-            if (presented - pendingFrame[head] < sampleRate) onBeat(pendingBeat[head], pendingAccent[head])
-            head = (head + 1) % pendingFrame.size
-            count--
+        if (n > 0) {
+          val clock = HeardClock(track, ts, sampleRate)
+          for (i in 0 until n) {
+            val atMs = clock.epochMsOf(events[i] shr 8)
+            // Drop stale beats (> 1 s in the past) instead of bursting them.
+            if (atMs < System.currentTimeMillis() - 1000) continue
+            onBeat((events[i] and 0x7F).toInt(), (events[i] and 0x80) != 0L, atMs)
           }
         }
       }
@@ -162,13 +148,22 @@ class MetronomeEngine(private val onBeat: (beat: Int, accent: Boolean) -> Unit) 
     }
   }
 
-  /** Frames the device has actually presented so far (extrapolated from the latest hardware timestamp). */
-  private fun presentedFrames(track: AudioTrack, ts: AudioTimestamp, sampleRate: Int): Long {
-    if (track.getTimestamp(ts)) {
-      val elapsedNs = System.nanoTime() - ts.nanoTime
-      return ts.framePosition + (elapsedNs * sampleRate / 1_000_000_000L)
+  /** Maps an absolute core frame to the epoch ms at which it is heard (hardware timestamp, else playback head). */
+  private class HeardClock(track: AudioTrack, ts: AudioTimestamp, private val sampleRate: Int) {
+    private val hasTs = track.getTimestamp(ts)
+    private val tsNanos = ts.nanoTime
+    private val tsFrame = ts.framePosition
+    private val head = track.playbackHeadPosition.toLong() and 0xFFFFFFFFL  // unsigned 32-bit
+    private val nowNanos = System.nanoTime()
+    private val nowMs = System.currentTimeMillis()
+
+    fun epochMsOf(frame: Long): Double {
+      if (hasTs) {
+        val heardNanos = tsNanos + (frame - tsFrame) * 1_000_000_000L / sampleRate
+        return nowMs + (heardNanos - nowNanos) / 1e6
+      }
+      return nowMs + (frame - head) * 1000.0 / sampleRate
     }
-    return track.playbackHeadPosition.toLong() and 0xFFFFFFFFL  // unsigned 32-bit
   }
 
   private companion object {

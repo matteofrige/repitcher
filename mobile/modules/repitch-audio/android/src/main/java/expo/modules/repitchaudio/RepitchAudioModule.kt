@@ -39,8 +39,8 @@ class RepitchAudioModule : Module() {
     player ?: PlayerEngine(appCtx) { name, body -> sendEvent(name, body) }.also { player = it }
 
   private fun metronome(): MetronomeEngine =
-    metronome ?: MetronomeEngine { beat, accent ->
-      sendEvent("onMetronomeBeat", mapOf("beat" to beat, "accent" to accent))
+    metronome ?: MetronomeEngine { beat, accent, atMs ->
+      sendEvent("onMetronomeBeat", mapOf("beat" to beat, "accent" to accent, "atMs" to atMs))
     }.also { metronome = it }
 
   private fun tuner(): TunerEngine =

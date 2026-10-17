@@ -7,14 +7,15 @@ import AVFoundation
 /// Timing lives entirely in the C++ core (frame counting on the audio thread). The only thing the main
 /// thread does is *report* beats to JS:
 ///  - the core stamps each click with the render block's host time + frame offset;
-///  - a ~125 Hz main-queue timer drains those events and emits `onMetronomeBeat` when
-///    `hostTime + offset + outputLatency + ioBufferDuration` has arrived, i.e. when the click actually
-///    leaves the speaker (not when it was rendered, which is a buffer + output latency earlier).
+///  - a ~125 Hz main-queue timer drains those events and emits `onMetronomeBeat` right away (a buffer or so
+///    ahead of the sound) with `atMs`: the epoch time (JS `Date.now()` clock) at which
+///    `hostTime + offset + outputLatency + ioBufferDuration` arrives, i.e. when the click leaves the speaker.
+///    JS schedules the visuals on that timestamp instead of reacting after the fact.
 /// Choice: render-block host time rather than a frame-count estimate, because it stays exact across
 /// stalls/underruns of the main thread and across engine restarts.
 /// Main thread only.
 final class MetronomeEngine {
-  var onBeat: ((Int, Bool) -> Void)?
+  var onBeat: ((Int, Bool, Double) -> Void)?
   private(set) var isActive = false
 
   private let player: PlayerEngine
@@ -22,8 +23,6 @@ final class MetronomeEngine {
   private var sourceNode: AVAudioSourceNode?
   private var preparedRate: Double = 0
 
-  private struct PendingBeat { let due: Double; let beat: Int; let accent: Bool }
-  private var pending: [PendingBeat] = []
   private var timer: DispatchSourceTimer?
   private var latency: Double = 0
   private var latencyStamp: Double = 0
@@ -53,7 +52,6 @@ final class MetronomeEngine {
       try engine.start()
     }
     _ = core.drainBeats(withLatency: 0)  // drop leftovers of a previous run
-    pending.removeAll()
     core.start()
     isActive = true
     startTimer()
@@ -65,7 +63,6 @@ final class MetronomeEngine {
     isActive = false
     resumeAfterInterruption = false
     stopTimer()
-    pending.removeAll()
     // Nothing else needs the engine: stop it. PlayerEngine.startPlayback restarts it and reschedules.
     if !player.isPlaying { player.engine.stop() }
   }
@@ -110,7 +107,6 @@ final class MetronomeEngine {
       core.stop()
       isActive = false
       stopTimer()
-      pending.removeAll()
     } else {
       let resume = resumeAfterInterruption && shouldResume
       resumeAfterInterruption = false
@@ -141,13 +137,11 @@ final class MetronomeEngine {
       latency = session.outputLatency + session.ioBufferDuration
       latencyStamp = now
     }
+    let epochMs = Date().timeIntervalSince1970 * 1000
     for item in core.drainBeats(withLatency: latency) {
       guard let due = item["due"] as? Double, let beat = item["beat"] as? Int else { continue }
-      pending.append(PendingBeat(due: due, beat: beat, accent: (item["accent"] as? Bool) ?? false))
-    }
-    while let first = pending.first, first.due <= now {
-      pending.removeFirst()
-      if now - first.due < 1.0 { onBeat?(first.beat, first.accent) }  // drop stale beats instead of bursting
+      if due < now - 1.0 { continue }  // drop stale beats instead of bursting
+      onBeat?(beat, (item["accent"] as? Bool) ?? false, epochMs + (due - now) * 1000)
     }
   }
 }

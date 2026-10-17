@@ -32,8 +32,8 @@ public class RepitchAudioModule: Module {
       player.onRemotePrevious = { [weak self] in
         self?.sendEvent("onRemotePrevious", [:])
       }
-      metronome.onBeat = { [weak self] beat, accent in
-        self?.sendEvent("onMetronomeBeat", ["beat": beat, "accent": accent])
+      metronome.onBeat = { [weak self] beat, accent, atMs in
+        self?.sendEvent("onMetronomeBeat", ["beat": beat, "accent": accent, "atMs": atMs])
       }
       tuner.onReading = { [weak self] reading in
         self?.sendEvent("onTunerReading", reading)

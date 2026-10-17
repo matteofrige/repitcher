@@ -11,7 +11,12 @@ export type MetronomeConfig = {
   volume: number;
 };
 /** `beat` is the position inside the bar (0 = accented first beat). Emitted when the click leaves the speaker. */
-export type MetronomeBeatEvent = { beat: number; accent: boolean };
+export type MetronomeBeatEvent = {
+  beat: number;
+  accent: boolean;
+  /** Epoch ms (same clock as `Date.now()`) at which the click is audible; usually a little in the future. */
+  atMs: number;
+};
 export type TunerReadingEvent = {
   /** Hz, -1 when there is no signal. */
   frequency: number;

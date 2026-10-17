@@ -3,10 +3,11 @@ import { useSyncExternalStore } from 'react';
 import { getTools, setTools, type ToolsSettings } from './library';
 import * as RepitchAudio from '../../modules/repitch-audio';
 
-type State = { running: boolean; activeBeat: number; flashTick: number };
-let state: State = { running: false, activeBeat: -1, flashTick: 0 };
+type State = { running: boolean; activeBeat: number };
+let state: State = { running: false, activeBeat: -1 };
 const listeners = new Set<() => void>();
 let offTimer: ReturnType<typeof setTimeout> | null = null;
+let onTimer: ReturnType<typeof setTimeout> | null = null;
 
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
@@ -38,6 +39,7 @@ export async function stopMetronome() {
     await RepitchAudio.metronomeStop();
   } finally {
     if (offTimer) clearTimeout(offTimer);
+    if (onTimer) clearTimeout(onTimer);
     set({ running: false, activeBeat: -1 });
   }
 }
@@ -51,9 +53,13 @@ export function initMetronome() {
   if (wired) return;
   wired = true;
   RepitchAudio.addMetronomeBeatListener((e) => {
-    if (offTimer) clearTimeout(offTimer);
-    set({ activeBeat: e.beat, flashTick: state.flashTick + 1 });
-    offTimer = setTimeout(() => set({ activeBeat: -1 }), 120);
+    // Events arrive ahead of the sound: light the dot when the click is heard (a frame early).
+    if (onTimer) clearTimeout(onTimer);
+    onTimer = setTimeout(() => {
+      if (offTimer) clearTimeout(offTimer);
+      set({ activeBeat: e.beat });
+      offTimer = setTimeout(() => set({ activeBeat: -1 }), 120);
+    }, Math.max(0, e.atMs - Date.now() - 8));
   });
 }
 

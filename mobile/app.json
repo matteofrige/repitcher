@@ -15,7 +15,7 @@
         "tinted": "./assets/images/icon-tinted.png"
       },
       "bundleIdentifier": "it.re-pitch.repitch",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "appleTeamId": "BY6ANXN7HT",
       "infoPlist": {
         "UISupportedInterfaceOrientations": [
@@ -49,7 +49,7 @@
       "predictiveBackGestureEnabled": false,
       "allowBackup": false,
       "package": "it.repitch.RePitch",
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
