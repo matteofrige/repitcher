@@ -24,7 +24,13 @@ export function setMetronome(patch: Partial<Pick<ToolsSettings, 'bpm' | 'beatsPe
   configure();
 }
 
+export function isMetronomeRunning(): boolean {
+  return state.running;
+}
+
 export async function startMetronome() {
+  // Mutually exclusive with the metronome that follows the track (native stops it too).
+  if (getTools().follow) setTools({ follow: false });
   configure();
   try {
     await RepitchAudio.metronomeStart();
@@ -53,6 +59,7 @@ export function initMetronome() {
   if (wired) return;
   wired = true;
   RepitchAudio.addMetronomeBeatListener((e) => {
+    if (e.follow) return; // beat follow has its own flash (BeatFlash); the dots belong to the fixed-tempo metronome
     // Events arrive ahead of the sound: light the dot when the click is heard (a frame early).
     if (onTimer) clearTimeout(onTimer);
     onTimer = setTimeout(() => {

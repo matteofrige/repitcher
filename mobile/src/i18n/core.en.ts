@@ -259,6 +259,19 @@ export const core: CoreStrings = {
     flash: 'Flash on the beat',
   },
 
+  beatFollow: {
+    title: 'Metronome on the track',
+    toggleA11y: 'Metronome on the track: follows the beat of this track',
+    click: 'Click',
+    clickA11y: 'Click on the track’s beat',
+    flash: 'Flash',
+    flashA11y: 'Flash on the track’s beat',
+    analysing: 'Analysing the tempo…',
+    following: (bpm: number) => `≈ ${bpm} BPM · follows the track`,
+    invalid: 'No clear beat found in this track',
+    failed: 'Could not analyse the rhythm of this track.',
+  },
+
   tuner: {
     title: 'Tuner',
     deniedBody: pick(

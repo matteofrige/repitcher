@@ -51,6 +51,14 @@ class SpscQueue {
   std::atomic<size_t> read_{0};
 };
 
+/// Click programmato dal main thread a un frame assoluto del core (modalità "follow").
+struct ScheduledClick {
+  int64_t frame = 0;
+  int32_t beatIndex = 0;
+  bool accent = false;
+  uint32_t epoch = 0;  // generazione di clearScheduled(): i click di epoche vecchie vengono scartati
+};
+
 class MetronomeCore {
  public:
   static constexpr double kMinBpm = 20, kMaxBpm = 300;
@@ -72,6 +80,10 @@ class MetronomeCore {
     samplesPerBeat_ = sr_ * 60.0 / appliedBpm_;
     MetronomeEvent e;
     while (events_.pop(e)) {}
+    hasPend_ = false;
+    blockSeen_.store(false, std::memory_order_release);
+    ScheduledClick sc;
+    while (scheduled_.pop(sc)) {}
   }
 
   // --- Thread UI ---
@@ -87,10 +99,49 @@ class MetronomeCore {
   bool popEvent(MetronomeEvent& e) { return events_.pop(e); }
   double sampleRate() const { return sr_; }
 
+  // --- Modalità follow: click a frame esatti decisi dal main thread (battiti di un brano) ---
+  /// Con follow attivo il generatore interno è spento: suonano solo i click programmati.
+  void setFollow(bool on) { follow_.store(on, std::memory_order_release); }
+  /// Con false i click programmati producono comunque l'evento ma non il suono (solo lampeggio).
+  void setFollowClickAudible(bool on) { followAudible_.store(on, std::memory_order_relaxed); }
+  /// Thread UI. `frame` è nel tempo del core (stesso dominio di lastBlock). Ordine crescente.
+  bool scheduleClick(int64_t frame, bool accent, int beatIndex) {
+    ScheduledClick c;
+    c.frame = frame;
+    c.accent = accent;
+    c.beatIndex = beatIndex;
+    c.epoch = clearEpoch_.load(std::memory_order_acquire);
+    return scheduled_.push(c);
+  }
+  /// Scarta tutti i click già programmati (seek, pausa, cambio brano). Il render lo applica al blocco dopo.
+  void clearScheduled() { clearEpoch_.fetch_add(1, std::memory_order_acq_rel); }
+  /// Mappatura dell'ultimo blocco renderizzato: frame del core al primo campione e tag (hostTime).
+  /// Ritorna false se non c'è ancora nessun blocco o la lettura è inconsistente.
+  bool lastBlock(int64_t& frame, uint64_t& tag) const {
+    for (int tries = 0; tries < 4; ++tries) {
+      const uint64_t t1 = lastBlockTag_.load(std::memory_order_acquire);
+      const int64_t f = lastBlockFrame_.load(std::memory_order_acquire);
+      const uint64_t t2 = lastBlockTag_.load(std::memory_order_acquire);
+      if (t1 == t2) {
+        frame = f;
+        tag = t1;
+        return blockSeen_.load(std::memory_order_acquire);
+      }
+    }
+    return false;
+  }
+
   /// Render thread. Scrive `frames` campioni mono; ritorna false se il blocco è tutto silenzio.
   /// `blockTag` viene copiato negli eventi di questo blocco.
   bool render(float* out, int frames, uint64_t blockTag = 0) {
-    const bool wantRun = running_.load(std::memory_order_acquire);
+    const bool follow = follow_.load(std::memory_order_acquire);
+    const bool wantRun = running_.load(std::memory_order_acquire) && !follow;
+    lastBlockFrame_.store(frame_, std::memory_order_release);
+    lastBlockTag_.store(blockTag, std::memory_order_release);
+    blockSeen_.store(true, std::memory_order_release);
+    const uint32_t epoch = clearEpoch_.load(std::memory_order_acquire);
+    if (hasPend_ && pend_.epoch != epoch) hasPend_ = false;
+    const bool audible = followAudible_.load(std::memory_order_relaxed);
     const uint32_t seq = startSeq_.load(std::memory_order_acquire);
     if (wantRun && (!active_ || seq != seenStartSeq_)) {
       // (Ri)partenza: primo click immediato, battito 0.
@@ -137,6 +188,26 @@ class MetronomeCore {
         events_.push(e);  // se piena (UI bloccata) l'evento si perde, il suono no
         nextBeatFrame_ += samplesPerBeat_;
         beat_ = (beat_ + 1) % bpb;
+      }
+      // Click programmati: parte al frame esatto; in ritardo di meno di un blocco suona subito, più vecchi → scartato.
+      for (;;) {
+        if (!hasPend_) {
+          if (!scheduled_.pop(pend_)) break;
+          hasPend_ = true;
+        }
+        if (pend_.epoch != epoch || !follow) { hasPend_ = false; continue; }
+        if (pend_.frame > frame_) break;
+        if (frame_ - pend_.frame <= frames) {
+          if (audible) startClick(pend_.accent);
+          MetronomeEvent e;
+          e.beatIndex = pend_.beatIndex;
+          e.accent = pend_.accent;
+          e.frameTime = frame_;
+          e.blockTag = blockTag;
+          e.frameInBlock = i;
+          events_.push(e);
+        }
+        hasPend_ = false;
       }
       float s = 0.f;
       if (clickPos_ >= 0) {
@@ -196,6 +267,13 @@ class MetronomeCore {
   std::atomic<bool> running_{false};
   std::atomic<uint32_t> startSeq_{0};
   SpscQueue<MetronomeEvent, 128> events_;
+  std::atomic<bool> follow_{false};
+  std::atomic<bool> followAudible_{true};
+  std::atomic<uint32_t> clearEpoch_{0};
+  SpscQueue<ScheduledClick, 64> scheduled_;
+  std::atomic<int64_t> lastBlockFrame_{0};
+  std::atomic<uint64_t> lastBlockTag_{0};
+  std::atomic<bool> blockSeen_{false};
 
   // Stato del solo render thread
   double sr_ = 48000.0;
@@ -210,6 +288,8 @@ class MetronomeCore {
   double appliedBpm_ = 100.0;
   int beat_ = 0;
   bool active_ = false;
+  ScheduledClick pend_;  // click estratto dalla coda in attesa del suo frame (solo render thread)
+  bool hasPend_ = false;
   uint32_t seenStartSeq_ = 0;
   int clickPos_ = -1;
   float level_ = 1.f;

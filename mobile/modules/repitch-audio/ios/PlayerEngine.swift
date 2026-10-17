@@ -49,7 +49,12 @@ final class PlayerEngine {
   private var pausedFrame: AVAudioFramePosition = 0
   private var lastKnownFrame: AVAudioFramePosition = 0
   private var needsReschedule = true
-  private var generation = 0
+  private var generation = 0 {
+    didSet { playbackEpoch &+= 1 }
+  }
+  /// Bumps on every playback discontinuity: seek, (re)schedule, pause/resume, track change, engine restart.
+  /// MetronomeEngine's beat follow compares it between pumps instead of guessing from timestamps.
+  private(set) var playbackEpoch = 0
   /// Generation whose end-of-track was already handled (completion callback and tick fallback race).
   private var endedGeneration = -1
 
@@ -178,6 +183,31 @@ final class PlayerEngine {
     return lastKnownFrame
   }
 
+  // MARK: - Beat follow support
+
+  /// Delay the pitch unit adds to the track (Signalsmith streaming latency), in seconds.
+  var pitchLatencySeconds: Double { pitchUnit?.latencySeconds ?? 0 }
+
+  /// A consistent (host clock, file position) pair taken from the player node's last render cycle.
+  struct PlaybackSnapshot {
+    let hostSeconds: Double       // AVAudioTime.seconds(forHostTime:) of that render cycle
+    let fileFrame: Double         // frame in the file being rendered at that moment
+    let fileSampleRate: Double
+    let epoch: Int
+  }
+
+  /// Nil unless the track is playing and the node has a valid clock.
+  func playbackSnapshot() -> PlaybackSnapshot? {
+    guard isPlaying, file != nil, sampleRate > 0,
+          let nodeTime = node.lastRenderTime, nodeTime.isHostTimeValid,
+          let playerTime = node.playerTime(forNodeTime: nodeTime), playerTime.isSampleTimeValid else { return nil }
+    return PlaybackSnapshot(
+      hostSeconds: AVAudioTime.seconds(forHostTime: nodeTime.hostTime),
+      fileFrame: Double(segmentStartFrame) + Double(playerTime.sampleTime),
+      fileSampleRate: playerTime.sampleRate > 0 ? playerTime.sampleRate : sampleRate,
+      epoch: playbackEpoch)
+  }
+
   // MARK: - Graph
 
   private func ensurePitchUnit(_ done: @escaping (Result<Void, Error>) -> Void) {
@@ -290,6 +320,7 @@ final class PlayerEngine {
     }
     node.play()
     isPlaying = true
+    playbackEpoch &+= 1
     lastTickUptime = ProcessInfo.processInfo.systemUptime
     startTimer()
     updateNowPlaying()
@@ -298,6 +329,7 @@ final class PlayerEngine {
   private func pausePlayback() {
     let frame = currentFrame()
     node.pause()
+    playbackEpoch &+= 1
     accruePlayedTime()
     isPlaying = false
     pausedFrame = frame

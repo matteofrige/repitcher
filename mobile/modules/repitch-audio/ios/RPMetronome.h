@@ -17,6 +17,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)start;
 - (void)stop;
 
+/// Beat follow: with `on` the internal generator is muted and only scheduled clicks play.
+/// `clickAudible` NO keeps the beat events but makes the clicks silent (flash-only).
+- (void)setFollow:(BOOL)on clickAudible:(BOOL)clickAudible;
+/// Updates the bar length and volume used by the clicks (atomics, valid while running).
+- (void)configureFollowWithBeatsPerBar:(NSInteger)beatsPerBar volume:(double)volume;
+/// Schedules one click at `hostSeconds` (+[AVAudioTime secondsForHostTime:] domain, when the core renders it).
+/// Returns NO when the core hasn't rendered a block yet (no host/frame mapping) or the queue is full.
+- (BOOL)scheduleClickAtHostSeconds:(double)hostSeconds accent:(BOOL)accent beatIndex:(NSInteger)beatIndex;
+/// Drops every click scheduled but not yet played (seek, pause, track change).
+- (void)clearScheduled;
+
 /// Pops the beats rendered since the last call. Each item:
 /// @{ @"beat": Int (position in the bar), @"accent": Bool,
 ///    @"due": Double (seconds, host-clock domain of +[AVAudioTime secondsForHostTime:]) }.

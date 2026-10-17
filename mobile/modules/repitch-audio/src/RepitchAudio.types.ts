@@ -16,6 +16,8 @@ export type MetronomeBeatEvent = {
   accent: boolean;
   /** Epoch ms (same clock as `Date.now()`) at which the click is audible; usually a little in the future. */
   atMs: number;
+  /** True for clicks scheduled by the beat follow (reported ~350 ms ahead, already aligned to the track). */
+  follow?: boolean;
 };
 export type TunerReadingEvent = {
   /** Hz, -1 when there is no signal. */
@@ -46,6 +48,16 @@ export type TuningDetection = {
   cents: number;
   /** 0…1 */
   confidence: number;
+};
+
+export type BeatDetection = {
+  valid: boolean;
+  /** Median tempo. */
+  bpm: number;
+  /** 0…1 */
+  confidence: number;
+  /** Beat positions in seconds, ascending. */
+  beats: number[];
 };
 
 export type PlayerStatus = {

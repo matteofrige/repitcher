@@ -30,5 +30,5 @@ Pod::Spec.new do |s|
 
   s.source_files = "**/*.{h,m,mm,swift}"
   # Only the ObjC header is public (it must stay free of C++ to be part of the Swift umbrella).
-  s.public_header_files = "RPPitchAudioUnit.h", "RPTuningDetector.h", "RPMetronome.h", "RPPitchDetectorBridge.h"
+  s.public_header_files = "RPPitchAudioUnit.h", "RPTuningDetector.h", "RPMetronome.h", "RPPitchDetectorBridge.h", "RPBeatDetector.h"
 end

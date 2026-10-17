@@ -275,6 +275,19 @@ export const core = {
     flash: 'Lampeggia sul battito',
   },
 
+  beatFollow: {
+    title: 'Metronomo sul brano',
+    toggleA11y: 'Metronomo sul brano: segue il ritmo di questo brano',
+    click: 'Click',
+    clickA11y: 'Click sul ritmo del brano',
+    flash: 'Lampeggio',
+    flashA11y: 'Lampeggio sul ritmo del brano',
+    analysing: 'Analisi del tempo…',
+    following: (bpm: number) => `≈ ${bpm} BPM · segue il brano`,
+    invalid: 'Ritmo non riconosciuto in questo brano',
+    failed: 'Non riesco ad analizzare il ritmo di questo brano.',
+  },
+
   tuner: {
     title: 'Accordatore',
     deniedBody: pick(

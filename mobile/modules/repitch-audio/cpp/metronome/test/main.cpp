@@ -167,7 +167,85 @@ static void perfTest() {
   check(us < 500, "perf render", d);
 }
 
+static void scheduledTest() {
+  const double sr = 48000;
+  MetronomeCore m;
+  m.prepare(sr);
+  m.setBeatsPerBar(4); m.setVolume(1.f);
+  m.setFollow(true);
+  int64_t fr; uint64_t tag;
+  std::vector<float> buf(2048);
+  bool noBlock = !m.lastBlock(fr, tag);
+  // Click a frame esatti, anche dentro un blocco; il generatore interno resta muto (anche con start()).
+  m.start();
+  const int64_t targets[] = {1000, 5123, 5123 + 24000, 70000};
+  for (int i = 0; i < 4; ++i) m.scheduleClick(targets[i], i % 4 == 0, i);
+  Run r;
+  renderBlocks(m, r, 100000, [](int64_t) {});
+  bool ok = r.onsets.size() == 4 && r.events.size() == 4;
+  for (size_t i = 0; ok && i < 4; ++i)
+    if (r.events[i].frameTime != targets[i] || std::llabs(r.onsets[i] - targets[i]) > 1 || r.events[i].beatIndex != (int)i) ok = false;
+  bool mapped = m.lastBlock(fr, tag) && fr > 90000 && fr <= 100000;
+  char d[200];
+  std::snprintf(d, sizeof d, "click=%zu eventi=%zu primo=%lld", r.onsets.size(), r.events.size(),
+                r.onsets.empty() ? -1LL : (long long)r.onsets[0]);
+  check(noBlock && ok && mapped, "click programmati esatti", d);
+
+  // Modalità silenziosa: eventi sì, audio no.
+  {
+    MetronomeCore q;
+    q.prepare(sr); q.setFollow(true); q.setFollowClickAudible(false); q.setVolume(1.f);
+    q.scheduleClick(3000, true, 0);
+    q.scheduleClick(9000, false, 1);
+    Run rs;
+    renderBlocks(q, rs, 20000, [](int64_t) {});
+    std::snprintf(d, sizeof d, "click=%zu eventi=%zu", rs.onsets.size(), rs.events.size());
+    check(rs.onsets.empty() && rs.events.size() == 2 && rs.events[1].frameTime == 9000, "follow silenzioso: solo eventi", d);
+  }
+  // Ritardo < 1 blocco: suona a inizio blocco; più vecchio: scartato.
+  {
+    MetronomeCore q;
+    q.prepare(sr); q.setFollow(true); q.setVolume(1.f);
+    q.render(buf.data(), 1000);                 // frame_ = 1000
+    q.scheduleClick(900, false, 0);              // 100 frame fa, blocco da 512 -> suona a 0
+    q.scheduleClick(1100, false, 1);             // dentro il blocco
+    q.render(buf.data(), 512);
+    MetronomeEvent e; std::vector<MetronomeEvent> ev;
+    while (q.popEvent(e)) ev.push_back(e);
+    bool late = ev.size() == 2 && ev[0].frameTime == 1000 && ev[1].frameTime == 1100;
+    q.scheduleClick(100, false, 2);              // troppo vecchio
+    q.render(buf.data(), 512);
+    while (q.popEvent(e)) ev.push_back(e);
+    check(late && ev.size() == 2, "click in ritardo / scartati", late ? "ok" : "fuori posto");
+  }
+  // clearScheduled: i click già in coda spariscono, quelli successivi no.
+  {
+    MetronomeCore q;
+    q.prepare(sr); q.setFollow(true); q.setVolume(1.f);
+    q.scheduleClick(2000, false, 0);
+    q.scheduleClick(3000, false, 1);
+    q.render(buf.data(), 512);                   // il primo è in attesa nel render
+    q.clearScheduled();
+    q.scheduleClick(4000, true, 2);
+    Run rc;
+    rc.total = 512;
+    renderBlocks(q, rc, 6000, [](int64_t) {});
+    std::snprintf(d, sizeof d, "eventi=%zu", rc.events.size());
+    check(rc.events.size() == 1 && rc.events[0].beatIndex == 2 && rc.events[0].frameTime == 4000, "clearScheduled", d);
+  }
+  // Spento follow: niente click programmati.
+  {
+    MetronomeCore q;
+    q.prepare(sr); q.setVolume(1.f);
+    q.scheduleClick(100, false, 0);
+    q.render(buf.data(), 512);
+    MetronomeEvent e;
+    check(!q.popEvent(e), "senza follow nessun click programmato", "ok");
+  }
+}
+
 int main() {
+  scheduledTest();
   driftTest(120, 48000, 600);
   driftTest(97, 48000, 600);
   driftTest(97, 44100, 600);

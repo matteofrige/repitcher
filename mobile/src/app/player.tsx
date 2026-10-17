@@ -7,10 +7,13 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } 
 import { s } from '../i18n';
 import { IconButton } from '../components/Controls';
 import { Paper } from '../components/Paper';
+import { Toggle } from '../components/Toggle';
 import { SheetStatusBar } from '../components/SheetStatusBar';
 import { SeekBar } from '../components/SeekBar';
 import { FineTuneControl, TranspositionControl } from '../components/TuningControls';
-import { effectiveTuning, sourceHzOf, useGlobalTuning, useTrack } from '../lib/library';
+import * as RepitchAudio from '../../modules/repitch-audio';
+import { useBeatFollow } from '../lib/beatFollow';
+import { effectiveTuning, setTools, sourceHzOf, useGlobalTuning, useTools, useTrack } from '../lib/library';
 import { formatResultLine, formatSettingsSummary } from '../lib/tuning';
 import { SourceLa } from '../components/SourceLa';
 import {
@@ -36,6 +39,60 @@ function Section({ n, title, text, children }: { n: number; title: string; text:
         <T variant="footnote">{text}</T>
       </View>
       {children}
+    </View>
+  );
+}
+
+/** Metronome that follows the track's own beats (hidden where the platform has no beat tracker). */
+function BeatFollowSection({ bpm }: { bpm: number | null }) {
+  const { follow, followClick, followFlash } = useTools();
+  const { active, analysing, error } = useBeatFollow();
+  const colors = useColors();
+  if (!RepitchAudio.beatFollowAvailable()) return null;
+  const status = analysing
+    ? s.beatFollow.analysing
+    : error === 'invalid'
+      ? s.beatFollow.invalid
+      : error === 'failed'
+        ? s.beatFollow.failed
+        : active && bpm
+          ? s.beatFollow.following(Math.round(bpm))
+          : null;
+  const row = { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 } as const;
+  return (
+    <View
+      style={{
+        gap: 4,
+        paddingTop: 14,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.rule,
+      }}>
+      <View style={row}>
+        <T variant="headline" accessibilityRole="header" style={{ flex: 1 }}>
+          {s.beatFollow.title}
+        </T>
+        <Toggle value={follow} accessibilityLabel={s.beatFollow.toggleA11y} onValueChange={(v) => setTools({ follow: v })} />
+      </View>
+      {follow ? (
+        <View style={{ gap: 2, paddingLeft: 12 }}>
+          <View style={row}>
+            <T variant="callout">{s.beatFollow.click}</T>
+            <Toggle value={followClick} accessibilityLabel={s.beatFollow.clickA11y} onValueChange={(v) => setTools({ followClick: v })} />
+          </View>
+          <View style={row}>
+            <T variant="callout">{s.beatFollow.flash}</T>
+            <Toggle value={followFlash} accessibilityLabel={s.beatFollow.flashA11y} onValueChange={(v) => setTools({ followFlash: v })} />
+          </View>
+          {status ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 }} accessibilityLiveRegion="polite">
+              {analysing ? <ActivityIndicator size="small" color={colors.inkSecondary} /> : null}
+              <T variant="footnote" tone={error ? 'danger' : undefined}>
+                {status}
+              </T>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -180,6 +237,8 @@ export default function PlayerScreen() {
         <T variant="callout" style={{ textAlign: 'center' }}>
           {formatResultLine(tuning, myLa, sourceHzOf(track))}
         </T>
+
+        <BeatFollowSection bpm={track.beats?.valid ? track.beats.bpm : null} />
       </ScrollView>
       <View
         style={{

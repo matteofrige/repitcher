@@ -192,6 +192,10 @@ function subscribe(l: () => void) {
     listeners.delete(l);
   };
 }
+/** Non-React subscription to player state changes (track, playing, loading...). */
+export function subscribePlayer(l: () => void) {
+  return subscribe(l);
+}
 export function usePlayer(): PlayerState {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }

@@ -13,10 +13,18 @@ import AVFoundation
 ///    JS schedules the visuals on that timestamp instead of reacting after the fact.
 /// Choice: render-block host time rather than a frame-count estimate, because it stays exact across
 /// stalls/underruns of the main thread and across engine restarts.
+///
+/// Beat follow (`startFollow`): the same source node plays clicks on the beats of the *track* instead of a
+/// fixed tempo. The pump looks ~350 ms ahead at the player's clock (host time + file frame of its last render
+/// cycle), converts each upcoming beat to a core frame (host time → core frame through the last render block,
+/// plus the pitch unit's latency) and schedules it sample-accurately; JS gets the event at scheduling time,
+/// with the same `atMs` convention, so it has ~300 ms of lead for the flash.
 /// Main thread only.
 final class MetronomeEngine {
-  var onBeat: ((Int, Bool, Double) -> Void)?
+  /// (beat in bar, accent, atMs, follow)
+  var onBeat: ((Int, Bool, Double, Bool) -> Void)?
   private(set) var isActive = false
+  private(set) var isFollowing = false
 
   private let player: PlayerEngine
   private let core = RPMetronome()
@@ -28,10 +36,24 @@ final class MetronomeEngine {
   private var latencyStamp: Double = 0
   private var resumeAfterInterruption = false
 
+  // Beat follow state
+  private var followBeats: [Double] = []
+  private var followBeatsPerBar = 4
+  private var followClickAudible = true
+  private var followVolume = 0.8
+  private var followNextBeat = 0
+  private var followEpoch: Int?
+  private var followLastHost = 0.0
+  private var followLastFrame = 0.0
+  private var resumeFollowAfterInterruption = false
+  private let followLookAhead = 0.35
+  private let followLateTolerance = 0.02
+  private let followJumpTolerance = 0.05
+
   init(player: PlayerEngine) {
     self.player = player
     core.configure(withBpm: 100, beatsPerBar: 4, volume: 0.8)
-    player.keepEngineRunning = { [weak self] in self?.isActive ?? false }
+    player.keepEngineRunning = { [weak self] in (self?.isActive ?? false) || (self?.isFollowing ?? false) }
     player.onEngineConfigurationChange = { [weak self] afterRestart in self?.handleConfigurationChange(afterRestart: afterRestart) }
     player.onInterruption = { [weak self] began, shouldResume in self?.handleInterruption(began: began, shouldResume: shouldResume) }
   }
@@ -40,8 +62,7 @@ final class MetronomeEngine {
     core.configure(withBpm: bpm, beatsPerBar: beatsPerBar, volume: volume)
   }
 
-  func start() throws {
-    if isActive { return }
+  private func bringUpEngine() throws {
     player.ensureObservers()
     // Session first: the hardware sample rate is only known once it's active.
     try AudioSessionCoordinator.shared.activate()
@@ -52,6 +73,13 @@ final class MetronomeEngine {
       try engine.start()
     }
     _ = core.drainBeats(withLatency: 0)  // drop leftovers of a previous run
+  }
+
+  func start() throws {
+    if isActive { return }
+    if isFollowing { stopFollow() }  // mutually exclusive with beat follow
+    try bringUpEngine()
+    core.setFollow(false, clickAudible: true)
     core.start()
     isActive = true
     startTimer()
@@ -65,6 +93,103 @@ final class MetronomeEngine {
     stopTimer()
     // Nothing else needs the engine: stop it. PlayerEngine.startPlayback restarts it and reschedules.
     if !player.isPlaying { player.engine.stop() }
+  }
+
+  // MARK: - Beat follow
+
+  func startFollow(beats: [Double], beatsPerBar: Int, clickAudible: Bool, volume: Double) throws {
+    if isActive { stop() }  // mutually exclusive with the fixed-tempo metronome
+    followBeats = beats
+    followBeatsPerBar = max(1, beatsPerBar)
+    followClickAudible = clickAudible
+    followVolume = volume
+    if isFollowing {
+      // New beats (e.g. track change) on a running follow: just resync.
+      core.configureFollow(withBeatsPerBar: followBeatsPerBar, volume: followVolume)
+      core.setFollow(true, clickAudible: clickAudible)
+      resetFollowCursor()
+      return
+    }
+    try bringUpEngine()
+    core.stop()
+    core.configureFollow(withBeatsPerBar: followBeatsPerBar, volume: followVolume)
+    core.setFollow(true, clickAudible: clickAudible)
+    core.clearScheduled()
+    resetFollowCursor()
+    isFollowing = true
+    startTimer()
+  }
+
+  func updateFollowOptions(clickAudible: Bool, beatsPerBar: Int, volume: Double) {
+    followClickAudible = clickAudible
+    followBeatsPerBar = max(1, beatsPerBar)
+    followVolume = volume
+    guard isFollowing else { return }
+    core.configureFollow(withBeatsPerBar: followBeatsPerBar, volume: volume)
+    core.setFollow(true, clickAudible: clickAudible)
+  }
+
+  func stopFollow() {
+    guard isFollowing else { return }
+    core.clearScheduled()
+    core.setFollow(false, clickAudible: true)
+    isFollowing = false
+    resumeFollowAfterInterruption = false
+    followBeats = []
+    stopTimer()
+    if !player.isPlaying && !isActive { player.engine.stop() }
+  }
+
+  private func resetFollowCursor() {
+    followEpoch = nil
+    followNextBeat = 0
+  }
+
+  /// First beat index whose time is >= t.
+  private func firstBeat(atOrAfter t: Double) -> Int {
+    var lo = 0, hi = followBeats.count
+    while lo < hi {
+      let mid = (lo + hi) / 2
+      if followBeats[mid] < t { lo = mid + 1 } else { hi = mid }
+    }
+    return lo
+  }
+
+  private func followPump(now: Double, epochMs: Double) {
+    _ = core.drainBeats(withLatency: 0)  // internal events are unused: follow reports at scheduling time
+    guard let snap = player.playbackSnapshot() else {
+      if followEpoch != nil {  // paused / stopped / engine down
+        core.clearScheduled()
+        followEpoch = nil
+      }
+      return
+    }
+    var resync = followEpoch != snap.epoch
+    if !resync {
+      let expected = followLastFrame + (snap.hostSeconds - followLastHost) * snap.fileSampleRate
+      if abs(expected - snap.fileFrame) / snap.fileSampleRate > followJumpTolerance { resync = true }
+    }
+    followLastHost = snap.hostSeconds
+    followLastFrame = snap.fileFrame
+    let fileTime = snap.fileFrame / snap.fileSampleRate
+    if resync {
+      core.clearScheduled()
+      followEpoch = snap.epoch
+      followNextBeat = firstBeat(atOrAfter: fileTime - followLateTolerance)
+    }
+    let pitchLatency = player.pitchLatencySeconds
+    while followNextBeat < followBeats.count {
+      let i = followNextBeat
+      let dt = followBeats[i] - fileTime
+      if dt > followLookAhead { break }
+      if dt < -followLateTolerance { followNextBeat += 1; continue }
+      let beatHost = snap.hostSeconds + dt + pitchLatency
+      let accent = i % followBeatsPerBar == 0
+      let inBar = i % followBeatsPerBar
+      if !core.scheduleClick(atHostSeconds: beatHost, accent: accent, beat: inBar) { break }  // retry next pump
+      followNextBeat += 1
+      onBeat?(inBar, accent, epochMs + (beatHost + latency - now) * 1000, true)
+    }
   }
 
   // MARK: - Graph
@@ -97,17 +222,33 @@ final class MetronomeEngine {
   /// node for the new output rate), then again after PlayerEngine has restarted the engine (verify the rate).
   private func handleConfigurationChange(afterRestart: Bool) {
     guard sourceNode != nil else { return }
+    if isFollowing { resetFollowCursor() }  // the rebuilt node starts from scratch: reschedule
     if !afterRestart || player.engine.isRunning { rebuildNodeIfNeeded() }
   }
 
   private func handleInterruption(began: Bool, shouldResume: Bool) {
     if began {
+      if isFollowing {
+        let beats = followBeats
+        resumeFollowAfterInterruption = true
+        stopFollow()
+        followBeats = beats
+        resumeFollowAfterInterruption = true
+        return
+      }
       guard isActive else { return }
       resumeAfterInterruption = true
       core.stop()
       isActive = false
       stopTimer()
     } else {
+      if resumeFollowAfterInterruption {
+        resumeFollowAfterInterruption = false
+        if shouldResume {
+          try? startFollow(beats: followBeats, beatsPerBar: followBeatsPerBar, clickAudible: followClickAudible, volume: followVolume)
+        }
+        return
+      }
       let resume = resumeAfterInterruption && shouldResume
       resumeAfterInterruption = false
       if resume { try? start() }
@@ -138,10 +279,14 @@ final class MetronomeEngine {
       latencyStamp = now
     }
     let epochMs = Date().timeIntervalSince1970 * 1000
+    if isFollowing {
+      followPump(now: now, epochMs: epochMs)
+      return
+    }
     for item in core.drainBeats(withLatency: latency) {
       guard let due = item["due"] as? Double, let beat = item["beat"] as? Int else { continue }
       if due < now - 1.0 { continue }  // drop stale beats instead of bursting
-      onBeat?(beat, (item["accent"] as? Bool) ?? false, epochMs + (due - now) * 1000)
+      onBeat?(beat, (item["accent"] as? Bool) ?? false, epochMs + (due - now) * 1000, false)
     }
   }
 }

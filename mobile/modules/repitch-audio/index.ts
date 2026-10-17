@@ -1,6 +1,7 @@
 import type { EventSubscription } from 'expo-modules-core';
 
 import type {
+  BeatDetection,
   MetronomeBeatEvent,
   MetronomeConfig,
   PlayedSecondsEvent,
@@ -13,6 +14,7 @@ import type {
 import RepitchAudioModule from './src/RepitchAudioModule';
 
 export type {
+  BeatDetection,
   MetronomeBeatEvent,
   MetronomeConfig,
   PlayedSecondsEvent,
@@ -79,6 +81,31 @@ export function metronomeConfigure(cfg: MetronomeConfig): Promise<void> {
 }
 export function addMetronomeBeatListener(cb: (e: MetronomeBeatEvent) => void): EventSubscription {
   return RepitchAudioModule.addListener('onMetronomeBeat', cb);
+}
+
+// --- Beat follow (metronome on the track's own beats) ---
+
+/** False where the native side has no beat tracker (older binary, Android for now). */
+export function beatFollowAvailable(): boolean {
+  return typeof RepitchAudioModule.detectBeats === 'function' && typeof RepitchAudioModule.beatFollowStart === 'function';
+}
+/** Finds the beats of a whole file in the background (can take several seconds). */
+export function detectBeats(uri: string): Promise<BeatDetection | null> {
+  if (!RepitchAudioModule.detectBeats) return Promise.resolve(null);
+  return RepitchAudioModule.detectBeats(uri);
+}
+/** Clicks/flashes on `beats` (seconds in the loaded track) while it plays; replaces the fixed-tempo metronome. */
+export function beatFollowStart(beats: number[], beatsPerBar: number, clickAudible: boolean, volume: number): Promise<void> {
+  if (!RepitchAudioModule.beatFollowStart) return Promise.resolve();
+  return RepitchAudioModule.beatFollowStart(beats, beatsPerBar, clickAudible, volume);
+}
+export function beatFollowStop(): Promise<void> {
+  if (!RepitchAudioModule.beatFollowStop) return Promise.resolve();
+  return RepitchAudioModule.beatFollowStop();
+}
+export function beatFollowConfigure(clickAudible: boolean, beatsPerBar: number, volume: number): Promise<void> {
+  if (!RepitchAudioModule.beatFollowConfigure) return Promise.resolve();
+  return RepitchAudioModule.beatFollowConfigure(clickAudible, beatsPerBar, volume);
 }
 
 // --- Tuner (microphone) ---

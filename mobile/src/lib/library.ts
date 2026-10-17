@@ -34,7 +34,13 @@ export type Track = {
   sourceHz: number | null;
   /** Original file name (with extension) at import; used to match settings backups. */
   originalName?: string;
+  /** Beat positions found by the native tracker (derived data: not part of settings backups). */
+  beats: TrackBeats | null;
+  /** null = not analysed (analysis is on demand, when the beat follow is used on the track). */
+  beatDetection: 'pending' | 'done' | 'failed' | null;
 };
+
+export type TrackBeats = { bpm: number; confidence: number; valid: boolean; times: number[] };
 
 /** Settings of a backed-up track that has no counterpart in the library yet. */
 export type BackupTrack = {
@@ -58,11 +64,17 @@ export type ToolsSettings = {
   /** 0…100 */
   volume: number;
   flash: boolean;
+  /** Metronome on the track: click/flash on the beats of the loaded track instead of a fixed tempo. */
+  follow: boolean;
+  /** Beat follow: audible click. */
+  followClick: boolean;
+  /** Beat follow: screen flash. */
+  followFlash: boolean;
   /** Pitch class 0…11 (C = 0) or 'auto'. */
   tunerTarget: number | 'auto';
 };
 
-export const DEFAULT_TOOLS: ToolsSettings = { bpm: 100, beatsPerBar: 4, volume: 80, flash: false, tunerTarget: 'auto' };
+export const DEFAULT_TOOLS: ToolsSettings = { bpm: 100, beatsPerBar: 4, volume: 80, flash: false, follow: false, followClick: true, followFlash: true, tunerTarget: 'auto' };
 
 // ---- sanitisers: library file and settings backups are untrusted JSON ----
 
@@ -90,9 +102,35 @@ export function cleanTools(raw: any): ToolsSettings {
     beatsPerBar: Math.round(clampNum(t.beatsPerBar, 1, 12, DEFAULT_TOOLS.beatsPerBar)),
     volume: clampNum(t.volume, 0, 100, DEFAULT_TOOLS.volume),
     flash: t.flash === true,
+    follow: t.follow === true,
+    followClick: t.followClick !== false,
+    followFlash: t.followFlash !== false,
     tunerTarget: Number.isInteger(target) && target >= 0 && target <= 11 ? target : 'auto',
   };
 }
+/** Beat times: finite, ascending, within the track (+1 s), at most 20000, rounded to the millisecond. */
+function cleanBeats(raw: any, duration: number): TrackBeats | null {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.times)) return null;
+  const limit = duration > 0 ? duration + 1 : Number.POSITIVE_INFINITY;
+  const times: number[] = [];
+  let last = -1;
+  for (const x of raw.times) {
+    if (times.length >= MAX_BEATS) break;
+    if (typeof x !== 'number' || !Number.isFinite(x) || x < 0 || x > limit) continue;
+    const t = Math.round(x * 1000) / 1000;
+    if (t <= last) continue;
+    times.push(t);
+    last = t;
+  }
+  return {
+    bpm: clampNum(raw.bpm, 0, 1000, 0),
+    confidence: clampNum(raw.confidence, 0, 1, 0),
+    valid: raw.valid === true && times.length >= 2,
+    times,
+  };
+}
+const MAX_BEATS = 20000;
+
 function cleanOverride(o: any): TrackTuning | null {
   if (!o || typeof o.semitones !== 'number' || typeof o.cents !== 'number') return null;
   return {
@@ -200,10 +238,14 @@ function migrateTrack(raw: any): Track {
     if (override !== undefined || s !== 0 || c !== 0) ov = { semitones: s, cents: c };
   }
   const detection = rest.detection;
+  const duration = clampNum(rest.duration, 0, 1e7, 0);
+  const beats = cleanBeats(rest.beats, duration);
   return {
     ...rest,
     title: cleanString(rest.title, 500) || String(rest.fileName),
-    duration: clampNum(rest.duration, 0, 1e7, 0),
+    duration,
+    beats,
+    beatDetection: beats && (rest.beatDetection === 'done' || rest.beatDetection === 'failed') ? rest.beatDetection : null,
     addedAt: clampNum(rest.addedAt, 0, Number.MAX_SAFE_INTEGER, 0),
     override: ov,
     detectedHz: cleanHz(rest.detectedHz),
@@ -274,6 +316,10 @@ function subscribe(l: () => void) {
   return () => {
     listeners.delete(l);
   };
+}
+/** Non-React subscription to any library change. */
+export function subscribeLibrary(l: () => void) {
+  return subscribe(l);
 }
 function useLibrarySelector<T>(sel: (s: LibraryState) => T): T {
   return useSyncExternalStore(subscribe, () => sel(state), () => sel(state));
@@ -398,6 +444,8 @@ export async function importFiles(): Promise<ImportResult> {
         detectedHz: null,
         detectedConfidence: null,
         detection: null,
+        beats: null,
+        beatDetection: null,
         sourceHz: null,
         originalName: asset.name.slice(0, 1000),
       });
@@ -613,6 +661,35 @@ export async function pumpDetection(): Promise<void> {
   } finally {
     pumping = false;
   }
+}
+
+// ---- beat positions (on demand, for the metronome that follows the track) ----
+
+const beatJobs = new Map<string, Promise<TrackBeats | null>>();
+
+/** Beats of a track, analysing it once (concurrent calls share the work). Null if the platform can't or it failed. */
+export function ensureBeats(trackId: string): Promise<TrackBeats | null> {
+  const track = getTrack(trackId);
+  if (!track) return Promise.resolve(null);
+  if (track.beats && track.beatDetection === 'done') return Promise.resolve(track.beats);
+  if (!RepitchAudio.beatFollowAvailable()) return Promise.resolve(null);
+  const running = beatJobs.get(trackId);
+  if (running) return running;
+  const job = (async () => {
+    updateTrack(trackId, { beatDetection: 'pending' });
+    let beats: TrackBeats | null = null;
+    try {
+      const r = await RepitchAudio.detectBeats(trackUri(track));
+      beats = r ? cleanBeats({ ...r, times: r.beats }, track.duration) : null;
+    } catch (e) {
+      console.warn('RePitch: beat detection failed', e);
+    }
+    // The track may have been deleted meanwhile.
+    if (getTrack(trackId)) updateTrack(trackId, { beats, beatDetection: beats ? 'done' : 'failed' });
+    return beats;
+  })().finally(() => beatJobs.delete(trackId));
+  beatJobs.set(trackId, job);
+  return job;
 }
 
 // ---- settings backup / restore ----

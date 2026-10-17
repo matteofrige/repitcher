@@ -32,8 +32,8 @@ public class RepitchAudioModule: Module {
       player.onRemotePrevious = { [weak self] in
         self?.sendEvent("onRemotePrevious", [:])
       }
-      metronome.onBeat = { [weak self] beat, accent, atMs in
-        self?.sendEvent("onMetronomeBeat", ["beat": beat, "accent": accent, "atMs": atMs])
+      metronome.onBeat = { [weak self] beat, accent, atMs, follow in
+        self?.sendEvent("onMetronomeBeat", ["beat": beat, "accent": accent, "atMs": atMs, "follow": follow])
       }
       tuner.onReading = { [weak self] reading in
         self?.sendEvent("onTunerReading", reading)
@@ -86,6 +86,19 @@ public class RepitchAudioModule: Module {
       }
     }
 
+    // Beat positions of the whole file (streamed decode), off the main thread.
+    AsyncFunction("detectBeats") { (uri: String, promise: Promise) in
+      let url = URL(string: uri).flatMap { $0.scheme != nil ? $0 : nil } ?? URL(fileURLWithPath: uri)
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          let result: [String: Any] = try RPBeatDetector.detectBeatsInFile(at: url)
+          promise.resolve(result)
+        } catch {
+          promise.reject("E_DETECT", error.localizedDescription)
+        }
+      }
+    }
+
     // Import check: same decoder the player uses (AVAudioFile), off the main thread.
     AsyncFunction("probeAudio") { (uri: String, promise: Promise) in
       let url = URL(string: uri).flatMap { $0.scheme != nil ? $0 : nil } ?? URL(fileURLWithPath: uri)
@@ -121,6 +134,24 @@ public class RepitchAudioModule: Module {
 
     AsyncFunction("metronomeConfigure") { (bpm: Double, beatsPerBar: Int, volume: Double) in
       self.metronome.configure(bpm: bpm, beatsPerBar: beatsPerBar, volume: volume)
+    }.runOnQueue(.main)
+
+    // Beat follow: clicks (and flashes) on the beats of the loaded track. Exclusive with the metronome above.
+    AsyncFunction("beatFollowStart") { (beats: [Double], beatsPerBar: Int, clickAudible: Bool, volume: Double, promise: Promise) in
+      do {
+        try self.metronome.startFollow(beats: beats, beatsPerBar: beatsPerBar, clickAudible: clickAudible, volume: volume)
+        promise.resolve()
+      } catch {
+        promise.reject("E_BEAT_FOLLOW", error.localizedDescription)
+      }
+    }.runOnQueue(.main)
+
+    AsyncFunction("beatFollowStop") {
+      self.metronome.stopFollow()
+    }.runOnQueue(.main)
+
+    AsyncFunction("beatFollowConfigure") { (clickAudible: Bool, beatsPerBar: Int, volume: Double) in
+      self.metronome.updateFollowOptions(clickAudible: clickAudible, beatsPerBar: beatsPerBar, volume: volume)
     }.runOnQueue(.main)
 
     AsyncFunction("tunerStart") { (promise: Promise) in

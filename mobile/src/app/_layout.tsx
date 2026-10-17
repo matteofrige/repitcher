@@ -21,6 +21,7 @@ import { BeatFlash } from '../components/BeatFlash';
 import { PromptHost } from '../components/PromptHost';
 import { runDemo } from '../lib/demo';
 import { loadLibrary, useLibraryLoaded } from '../lib/library';
+import { initBeatFollow } from '../lib/beatFollow';
 import { initMetronome } from '../lib/metronome';
 import { getPrefs } from '../lib/prefs';
 import { initReview } from '../lib/review';
@@ -49,6 +50,7 @@ function Navigator() {
   useInitPlayer();
   useEffect(() => {
     initMetronome();
+    initBeatFollow();
     initReview();
   }, []);
   return (
