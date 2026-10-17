@@ -67,6 +67,12 @@ awk -v a="$(getF "$o")" -v b="$(getF "$u")" 'BEGIN{exit !(a>b)}' || ok=0
 awk -v d="$(getDev "$o")" 'BEGIN{exit !(d<=20)}' || ok=0
 if [ $ok = 1 ]; then s=PASS; else s=FAIL; fails=$((fails+1)); fi
 printf "%-4s %-12s unanchored F=%s | %s\n" $s softlegato+4 "$(getF "$u")" "$o"
+# analyzeActivation (attivazione neurale sintetica: gaussiane su griglia rubato + decoy + rumore): F >= 0.98, valido, con e senza ancoraggi
+while read -r line; do
+  F=$(getF "$line")
+  if echo "$line" | grep -q 'valid=1' && awk -v f="$F" 'BEGIN{exit !(f>=0.98)}'; then s=PASS; else s=FAIL; fails=$((fails+1)); fi
+  printf "%-4s %s\n" $s "$line"
+done < <("$T/beats_test" --actsynth)
 # noise: deve risultare non valido
 "$T/beats_test" --synth noise "$T/noise.f32" 44100 60
 out=$("$T/beats_test" "$T/noise.f32" 44100)

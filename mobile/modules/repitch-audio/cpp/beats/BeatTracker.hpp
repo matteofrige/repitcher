@@ -111,7 +111,8 @@ class BeatTracker {
     double minBpm = 40, maxBpm = 220;
     double fps = 100;
     double tempoChangeLambda = 100;
-    double observationLambda = 16;  // larghezza regione beat = tau/observationLambda
+    double observationLambda = 16;  // larghezza regione beat = tau/observationLambda (percorso flusso spettrale)
+    double neuralObservationLambda = 36;  // idem, percorso analyzeActivation (picchi di rete neurale, stretti)
     // Prior log-normale sul tempo (per beat, all'ingresso in (tau,0) e nella distribuzione iniziale):
     // contrasta l'aggancio alle suddivisioni (ottavi/sedicesimi) tipico di classica/barocco.
     // sigma in unita' log2 (0.55 ~ un'ottava sopra/sotto pesa ~ -1.65 in log). 0 = prior spento.
@@ -131,6 +132,7 @@ class BeatTracker {
     lvl_.clear();
     havePrev_ = false;
     ready_ = sampleRate >= 8000.0;
+    lambda_ = opt_.observationLambda;
     if (!ready_) return;
     hop_ = std::max<std::size_t>(1, std::size_t(std::llround(sr_ / opt_.fps)));
     effFps_ = sr_ / double(hop_);
@@ -176,6 +178,56 @@ class BeatTracker {
     return res;
   }
 
+  // Decodifica un'attivazione di beat gia' calcolata (es. rete neurale Beat This!, probabilita'
+  // [0,1] a ~50 fps; i tempi sono frame/fps). Salta lo stadio di onset; stesso HMM/Viterbi (con
+  // neuralObservationLambda), controllo d'ottava, ancoraggi (setAnchors) e confidenza.
+  // Senza levelDepth la validita' e' solo: beat >= 8 && confidenza >= 0.15; incerto se < 0.35.
+  // downAct (opzionale) non influisce sui beat: usare downbeatPhase() sul risultato.
+  BeatTrackerResult analyzeActivation(const float* beatAct, std::size_t frames, double fps,
+                                      const float* downAct = nullptr) {
+    (void)downAct;
+    BeatTrackerResult res;
+    if (!beatAct || frames == 0 || fps < 10) return res;
+    sr_ = fps; hop_ = 1; effFps_ = fps; win_ = 0;  // win_ = 0 -> nessuno shift di onset
+    lambda_ = opt_.neuralObservationLambda;
+    std::vector<float> a(beatAct, beatAct + frames);
+    decode(a, res);
+    return res;
+  }
+
+  // Fase del downbeat: indice (0..beatsPerBar-1) del beat che apre la battuta, scelto massimizzando
+  // l'attivazione media di downbeat sui beat "in fase". margin = media(in fase) - media(altri);
+  // il chiamante accetta la fase solo se margin > 0.3. Ritorna 0 e margin 0 se non calcolabile.
+  static int downbeatPhase(const std::vector<double>& beats, const float* downAct, std::size_t frames,
+                           double fps, int beatsPerBar, float* marginOut = nullptr) {
+    if (marginOut) *marginOut = 0.f;
+    if (!downAct || frames == 0 || beatsPerBar < 2 || beats.size() < std::size_t(2 * beatsPerBar)) return 0;
+    const long long R = 3;  // +-3 frame (60 ms a 50 fps) attorno al beat
+    std::vector<double> v(beats.size(), 0.0);
+    for (std::size_t i = 0; i < beats.size(); ++i) {
+      const long long c = std::llround(beats[i] * fps);
+      float m = 0.f;
+      for (long long k = c - R; k <= c + R; ++k)
+        if (k >= 0 && k < (long long)frames) m = std::max(m, downAct[k]);
+      v[i] = m;
+    }
+    double total = 0;
+    for (double x : v) total += x;
+    int best = 0;
+    double bestMargin = -1e9;
+    for (int ph = 0; ph < beatsPerBar; ++ph) {
+      double on = 0;
+      std::size_t n = 0;
+      for (std::size_t i = std::size_t(ph); i < v.size(); i += std::size_t(beatsPerBar)) { on += v[i]; ++n; }
+      const std::size_t nOff = v.size() - n;
+      if (n == 0 || nOff == 0) continue;
+      const double margin = on / double(n) - (total - on) / double(nOff);
+      if (margin > bestMargin) { bestMargin = margin; best = ph; }
+    }
+    if (marginOut) *marginOut = float(bestMargin);
+    return best;
+  }
+
   BeatTrackerResult analyze(const float* mono, std::size_t n, double sampleRate) {
     begin(sampleRate);
     const std::size_t chunk = 1 << 16;
@@ -198,7 +250,7 @@ class BeatTracker {
   static constexpr float kMinLevelDepth = 0.45f, kMaxIbiCv = 0.25f;
   Options opt_;
   std::vector<double> anchors_;
-  double sr_ = 44100, effFps_ = 100;
+  double sr_ = 44100, effFps_ = 100, lambda_ = 16;
   std::size_t hop_ = 441, win_ = 2048;
   bool ready_ = false, havePrev_ = false;
   std::size_t total_ = 0, bufStart_ = 0, nextFrame_ = 0;
@@ -436,7 +488,7 @@ class BeatTracker {
       // Larghezza della regione beat: tau/lambda, ma al massimo 3 frame (+-1): i picchi della
       // nostra attivazione sono larghi 2-3 frame, una regione piu' larga premierebbe i tempi lenti
       // al contrario (vedi README di tuning nel report).
-      half[i] = std::min(kMaxHalfRegion, std::max(0, int(std::floor(double(tau) / (2.0 * opt_.observationLambda)))));
+      half[i] = std::min(kMaxHalfRegion, std::max(0, int(std::floor(double(tau) / (2.0 * lambda_)))));
     }
     const std::size_t S = off[nTau];
 
@@ -476,7 +528,7 @@ class BeatTracker {
     auto obs = [&](float v, float& lb, float& ln) {
       v = std::min(aMax, std::max(aMin, v));
       lb = std::log(v);
-      ln = std::log((1.f - v) / float(opt_.observationLambda - 1.0));
+      ln = std::log((1.f - v) / float(lambda_ - 1.0));
     };
     {
       float lb, ln;

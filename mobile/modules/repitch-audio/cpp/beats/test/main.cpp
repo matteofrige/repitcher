@@ -181,6 +181,42 @@ static Sig synth(const std::string& kind, double sr, double secs, std::vector<do
 }
 
 int main(int argc, char** argv) {
+  if (argc >= 2 && !std::strcmp(argv[1], "--actsynth")) {
+    // analyzeActivation: gaussiane (sigma ~1 frame) su una griglia rubato + decoy + rumore, 50 fps.
+    const double fps = 50, secs = 120;
+    std::vector<double> truth = beatsFor("rubato", secs, 0.5);
+    std::vector<float> act(std::size_t(secs * fps), 0.f);
+    for (float& v : act) v = float(0.03 * rnd());
+    auto bump = [&](double t, double amp) {
+      const double c = t * fps;
+      for (long long k = (long long)c - 4; k <= (long long)c + 4; ++k)
+        if (k >= 0 && k < (long long)act.size()) act[std::size_t(k)] = std::max(act[std::size_t(k)], float(amp * std::exp(-0.5 * (k - c) * (k - c))));
+    };
+    for (std::size_t i = 0; i + 1 < truth.size(); ++i) {
+      bump(truth[i] + 0.012 * gauss(), 0.85 + 0.1 * rnd());
+      if (rnd() < 0.3) bump(0.5 * (truth[i] + truth[i + 1]) + 0.01 * gauss(), 0.08 + 0.1 * rnd());  // decoy debole a meta' beat
+      if (rnd() < 0.1) bump(truth[i] + (truth[i + 1] - truth[i]) * rnd(), 0.12 * rnd());
+    }
+    if (std::getenv("ADBG")) { std::fprintf(stderr, "truth=%zu:", truth.size()); for (double t : truth) std::fprintf(stderr, " %.2f", t); std::fprintf(stderr, "\n"); }
+    for (int pass = 0; pass < 2; ++pass) {
+      repitch::BeatTracker bt;
+      std::vector<double> anch;
+      if (pass == 1) for (std::size_t i = 0; i < truth.size() && truth[i] < 60; i += 4) anch.push_back(truth[i] + 0.01 * gauss());
+      bt.setAnchors(anch);
+      repitch::BeatTrackerResult r = bt.analyzeActivation(act.data(), act.size(), fps);
+      std::size_t tp = 0;
+      std::vector<char> used(truth.size(), 0);
+      for (double b : r.beats) {
+        std::size_t bi = 0;
+        for (std::size_t i = 1; i < truth.size(); ++i) if (std::fabs(truth[i] - b) < std::fabs(truth[bi] - b)) bi = i;
+        if (std::fabs(truth[bi] - b) <= 0.07 && !used[bi]) { used[bi] = 1; ++tp; }
+      }
+      if (std::getenv("ADBG")) { std::fprintf(stderr, "got:"); for (double t : r.beats) std::fprintf(stderr, " %.2f", t); std::fprintf(stderr, "\n"); }
+      const double p = r.beats.empty() ? 0 : double(tp) / double(r.beats.size()), rc = double(tp) / double(truth.size());
+      std::printf("actsynth anchors=%zu beats=%zu bpm=%.2f conf=%.3f valid=%d unc=%d F=%.3f\n", anch.size(), r.beats.size(), r.medianBpm, r.confidence, r.valid ? 1 : 0, r.uncertain ? 1 : 0, tp ? 2 * p * rc / (p + rc) : 0.0);
+    }
+    return 0;
+  }
   if (argc >= 4 && !std::strcmp(argv[1], "--synth")) {
     std::string kind = argv[2], out = argv[3];
     double sr = argc > 4 ? std::atof(argv[4]) : 44100, secs = argc > 5 ? std::atof(argv[5]) : 60;
