@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hairline } from '../components/Controls';
 import { showAlert } from '../lib/promptHost';
 import { Paper } from '../components/Paper';
+import { PromptHost } from '../components/PromptHost';
 import { s } from '../i18n';
 import { applyBackup, exportBackup, pickBackup } from '../lib/backup';
 import { clearPendingRestore, usePendingRestore } from '../lib/library';
@@ -169,6 +170,7 @@ export default function BackupScreen() {
           ) : null}
         </ScrollView>
       </SafeAreaView>
+      <PromptHost />
     </Paper>
   );
 }

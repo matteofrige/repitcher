@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as RepitchAudio from '../../modules/repitch-audio';
 import { Button, tick } from '../components/Controls';
 import { Paper } from '../components/Paper';
+import { PromptHost } from '../components/PromptHost';
 import { HeaderTextButton, ScreenHeader } from '../components/ScreenHeader';
 import { s } from '../i18n';
 import { sym } from '../lib/icons';
@@ -263,6 +264,7 @@ export default function BeatEditScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <PromptHost />
     </Paper>
   );
 }
