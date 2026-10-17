@@ -1,0 +1,4 @@
+paper-grain-light.png — 512x512, paper colour #F1E6C8 plus procedural noise (no third-party source). Generated 2026-10-15.
+Used at full opacity as the page background (tiled by hand in src/components/Paper.tsx), so the field mean stays on the paper colour.
+ffmpeg -y -f lavfi -i "color=c=0xF1E6C8:s=512x512,format=rgb24,noise=alls=14:allf=t" -frames:v 1 paper-grain-light.png
+Measured mean RGB (241,230,200) ≈ #F1E6C8, std ≈ 7.5.

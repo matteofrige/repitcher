@@ -57,3 +57,7 @@ public/signalsmith-worklet.js
 
 # Claude Code local state
 .claude/
+
+# RePitch mobile (Expo CNG): generated native projects
+mobile/ios/
+mobile/android/

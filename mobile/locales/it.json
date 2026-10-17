@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "RePitch",
+    "NSMicrophoneUsageDescription": "RePitch usa il microfono solo per l'accordatore, per riconoscere la nota che suoni."
+  },
+  "android": {
+    "app_name": "RePitch"
+  }
+}

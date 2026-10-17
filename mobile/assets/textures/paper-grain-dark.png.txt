@@ -1,0 +1,4 @@
+paper-grain-dark.png — 512x512, walnut colour #1B1510 plus procedural noise (no third-party source). Generated 2026-10-15.
+Used at full opacity as the page background (tiled by hand in src/components/Paper.tsx).
+ffmpeg -y -f lavfi -i "color=c=0x1B1510:s=512x512,format=rgb24,noise=alls=10:allf=t" -frames:v 1 paper-grain-dark.png
+Measured mean RGB ≈ (27,21,16) = #1B1510.

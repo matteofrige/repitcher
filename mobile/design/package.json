@@ -1,0 +1,13 @@
+{
+  "name": "repitch-design",
+  "private": true,
+  "type": "module",
+  "description": "Marchio, icone e tavole App Store di RePitch Mobile (SVG -> PNG con resvg)",
+  "scripts": {
+    "build": "node render.mjs && node store.mjs"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "opentype.js": "^1.3.4"
+  }
+}

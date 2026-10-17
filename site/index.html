@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="it" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RePitch — Ogni brano al tuo La</title>
+<meta name="description" content="RePitch cambia l’intonazione dei tuoi brani in tempo reale, senza toccare il tempo. App per iPhone e iPad, gratuita e senza account. Presto anche su Android.">
+<meta name="theme-color" content="#F1E6C8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B1510" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="https://re-pitch.it/">
+<meta name="author" content="Matteo Frigé">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="RePitch">
+<meta property="og:locale" content="it_IT">
+<meta property="og:locale:alternate" content="en_GB">
+<meta property="og:url" content="https://re-pitch.it/">
+<meta property="og:title" content="RePitch — Ogni brano al tuo La">
+<meta property="og:description" content="Cambia l’intonazione dei tuoi brani in tempo reale, senza toccare il tempo. In arrivo su App Store, presto anche su Android.">
+<meta property="og:image" content="https://re-pitch.it/assets/social/og-image.jpg">
+<meta property="og:image:secure_url" content="https://re-pitch.it/assets/social/og-image.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ogni brano al tuo La — RePitch, l’app che cambia l’intonazione dei tuoi brani">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="RePitch — Ogni brano al tuo La">
+<meta name="twitter:description" content="Cambia l’intonazione dei tuoi brani in tempo reale, senza toccare il tempo. In arrivo su App Store, presto anche su Android.">
+<meta name="twitter:image" content="https://re-pitch.it/assets/social/og-image.jpg">
+<meta name="twitter:image:alt" content="Ogni brano al tuo La — RePitch, l’app che cambia l’intonazione dei tuoi brani">
+
+<!-- Open Graph / Twitter: i crawler dei social richiedono URL ASSOLUTI. -->
+
+<link rel="alternate" hreflang="it" href="https://re-pitch.it/">
+<link rel="alternate" hreflang="en" href="https://re-pitch.it/en/">
+<link rel="alternate" hreflang="x-default" href="https://re-pitch.it/en/">
+<link rel="icon" href="assets/favicon-48.png" sizes="48x48" type="image/png">
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/fell.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="assets/fonts/caslon.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<a class="skip" href="#contenuto">Vai al contenuto</a>
+
+<header class="top wrap">
+  <a class="brand" href="./" aria-label="RePitch, pagina iniziale">
+    <picture>
+      <source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)">
+      <img src="assets/logo.svg" alt="RePitch" width="1343" height="560">
+    </picture>
+  </a>
+  <nav aria-label="Principale">
+    <a href="#ascolta">Ascolta il tuo La</a>
+    <a href="#sostieni">Sostieni</a>
+    <a class="lang-switch lang-top" href="en/" lang="en" hreflang="en">English</a>
+  </nav>
+</header>
+
+<main id="contenuto">
+
+<!-- 1. Apertura -->
+<section class="hero wrap" aria-labelledby="titolo">
+  <div class="hero-copy">
+    <h1 id="titolo">Ogni brano al tuo&nbsp;La</h1>
+
+    <svg class="hero-staff" viewBox="0 0 640 160" role="img" aria-label="Un rigo musicale: la nota sale fino all’altezza giusta">
+      <g class="lines" stroke="currentColor" stroke-width="1.6">
+        <line x1="8" x2="632" y1="35" y2="35"/><line x1="8" x2="632" y1="55" y2="55"/><line x1="8" x2="632" y1="75" y2="75"/><line x1="8" x2="632" y1="95" y2="95"/><line x1="8" x2="632" y1="115" y2="115"/>
+      </g>
+      <text class="clef" x="22" y="115" font-size="80" fill="currentColor" aria-hidden="true">&#x1D11E;</text>
+      <ellipse class="note-ref" cx="330" cy="85" rx="14.5" ry="10" transform="rotate(-20 330 85)" fill="none" stroke="currentColor" stroke-width="2.4"/>
+      <line class="gliss" x1="352" y1="76" x2="446" y2="63" stroke="var(--pencil)" stroke-width="1.4" stroke-linecap="round"/>
+      <g class="note-rise"><ellipse cx="470" cy="55" rx="14.5" ry="10" transform="rotate(-20 470 55)" fill="var(--blue)"/></g>
+      <text class="staff-label" x="330" y="144" text-anchor="middle" font-size="15" fill="var(--sepia)">La 440</text>
+      <text class="staff-label" x="470" y="144" text-anchor="middle" font-size="15" fill="var(--sepia)">il tuo La</text>
+    </svg>
+
+    <p class="lead">RePitch cambia l’intonazione dei tuoi brani in tempo reale, senza toccare il tempo. Imposti il La del tuo strumento, lui rileva quello di ogni brano e li mette d’accordo.</p>
+
+    <div class="actions">
+      <p class="badge" role="note">
+        <span class="badge-small">In arrivo su App Store</span>
+        <span class="badge-big">iPhone e iPad</span>
+      </p>
+      <p class="badge" role="note">
+        <span class="badge-small">Presto disponibile</span>
+        <span class="badge-big">Android</span>
+      </p>
+      <a class="btn btn-solid" href="https://paypal.me/matteofrige459" data-donate rel="noopener">Sostieni il progetto</a>
+    </div>
+  </div>
+
+  <figure class="phone hero-phone">
+    <div class="frame">
+      <picture>
+        <source srcset="assets/intonazione-tab-dark.webp" media="(prefers-color-scheme: dark)">
+        <img src="assets/intonazione-tab-light.webp" width="1000" height="2173" alt="La schermata Intonazione di RePitch: il rigo con il La, i semitoni, i cents e i preset del La di riferimento." fetchpriority="high">
+      </picture>
+    </div>
+  </figure>
+</section>
+
+<!-- 2. Firma interattiva -->
+<section id="ascolta" class="sign band" aria-labelledby="t-ascolta" data-la>
+  <div class="wrap">
+    <h2 id="t-ascolta">Ascolta il tuo&nbsp;La</h2>
+
+    <svg class="sign-staff" viewBox="0 0 900 232" role="img" aria-label="Rigo musicale con la chiave di violino e la nota La">
+      <g stroke="currentColor" stroke-width="2">
+        <line x1="10" x2="890" y1="50" y2="50"/><line x1="10" x2="890" y1="78" y2="78"/><line x1="10" x2="890" y1="106" y2="106"/><line x1="10" x2="890" y1="134" y2="134"/><line x1="10" x2="890" y1="162" y2="162"/>
+      </g>
+      <text class="clef" x="34" y="162" font-size="112" fill="currentColor" aria-hidden="true">&#x1D11E;</text>
+      <g data-la-note>
+        <ellipse cx="560" cy="120" rx="20" ry="14" transform="rotate(-20 560 120)" fill="var(--blue)"/>
+        <text class="staff-label" x="610" y="126" font-size="20" fill="var(--pencil)" font-style="italic">La4</text>
+      </g>
+    </svg>
+
+    <div class="sign-ui">
+      <div class="sign-value">
+        <output for="la-slider" data-la-value aria-live="off">440</output>
+        <span class="unit">Hz</span>
+      </div>
+
+      <div class="sign-controls">
+        <fieldset class="presets">
+          <legend>La di riferimento</legend>
+          <div class="seg">
+            <input type="radio" name="la-preset" id="p392" value="392"><label for="p392">392</label>
+            <input type="radio" name="la-preset" id="p415" value="415"><label for="p415">415</label>
+            <input type="radio" name="la-preset" id="p430" value="430"><label for="p430">430</label>
+            <input type="radio" name="la-preset" id="p432" value="432"><label for="p432">432</label>
+            <input type="radio" name="la-preset" id="p440" value="440" checked><label for="p440">440</label>
+            <input type="radio" name="la-preset" id="p442" value="442"><label for="p442">442</label>
+            <input type="radio" name="la-preset" id="p443" value="443"><label for="p443">443</label>
+            <input type="radio" name="la-preset" id="p465" value="465"><label for="p465">465</label>
+          </div>
+        </fieldset>
+
+        <div class="slider-row">
+          <label for="la-slider">Frequenza, da 392 a 465 Hz</label>
+          <input id="la-slider" data-la-slider type="range" min="392" max="465" step="1" value="440">
+        </div>
+
+        <button type="button" class="btn btn-solid btn-play js-only" data-la-play data-label-play="Ascolta" data-label-stop="Ferma" aria-pressed="false">Ascolta</button>
+      </div>
+    </div>
+
+    <p class="sign-line">A 415 Hz suona il barocco, a 440 l’orchestra moderna. RePitch porta ogni registrazione al La che scegli tu.</p>
+  </div>
+</section>
+
+<!-- 3. Come funziona -->
+<section id="come-funziona" class="steps wrap" aria-labelledby="t-come">
+  <h2 id="t-come" class="section-title">Come funziona</h2>
+
+  <article class="step step-a">
+    <div class="step-text">
+      <h3>Il tuo La</h3>
+      <p>Scegli il La del tuo strumento, da 392 a 465&nbsp;Hz un hertz alla volta: 415 per il barocco, 432, 440, 442, 443. Vale per tutti i brani, insieme alla trasposizione in semitoni e all’accordatura fine in cents.</p>
+    </div>
+    <figure class="phone">
+      <div class="frame">
+        <picture>
+          <source srcset="assets/intonazione-tab-dark.webp" media="(prefers-color-scheme: dark)">
+          <img src="assets/intonazione-tab-light.webp" width="1000" height="2173" alt="Il La di riferimento 442 selezionato nella schermata Intonazione." loading="lazy">
+        </picture>
+      </div>
+    </figure>
+  </article>
+
+  <article class="step step-b">
+    <figure class="phone">
+      <div class="frame">
+        <picture>
+          <source srcset="assets/libreria-dark.webp" media="(prefers-color-scheme: dark)">
+          <img src="assets/libreria-light.webp" width="1000" height="2173" alt="La libreria di RePitch con i brani importati e, accanto ad alcuni, l’intonazione propria annotata." loading="lazy">
+        </picture>
+      </div>
+      <p class="pencil pencil-note" aria-hidden="false">La del brano 441&nbsp;Hz · rilevato</p>
+    </figure>
+    <div class="step-text">
+      <h3>Il La del brano, rilevato da solo</h3>
+      <p>Ogni registrazione ha un’accordatura sua. RePitch ne rileva il La, senza che tu debba cercarlo, e calcola da sé la differenza che separa il brano dal tuo strumento.</p>
+    </div>
+  </article>
+
+  <article class="step step-c">
+    <div class="step-text">
+      <h3>Solo per questo brano</h3>
+      <p>Se un brano chiede un’intonazione diversa, aprilo nel player e dagli semitoni e cents tutti suoi. Gli altri brani restano sull’intonazione generale, e quello lo ritrovi così alla prossima apertura.</p>
+    </div>
+    <figure class="phone">
+      <div class="frame">
+        <picture>
+          <source srcset="assets/player-dark.webp" media="(prefers-color-scheme: dark)">
+          <img src="assets/player-light.webp" width="1000" height="2173" alt="Il player di un brano con impostazioni proprie: il La del brano rilevato, il rigo e la trasposizione di più 3 semitoni." loading="lazy">
+        </picture>
+      </div>
+    </figure>
+  </article>
+</section>
+
+<!-- 4. Strumenti per lo studio -->
+<section class="tools band" aria-labelledby="t-studio">
+  <div class="wrap">
+    <h2 id="t-studio" class="section-title">Strumenti per lo studio</h2>
+    <dl class="ledger">
+      <div>
+        <dt>Playlist per lezioni e prove</dt>
+        <dd>Prepara la scaletta una volta sola. Ogni brano porta con sé la propria intonazione, e basta toccarlo per sentirlo subito come serve.</dd>
+      </div>
+      <div>
+        <dt>Metronomo</dt>
+        <dd>Il click è generato dentro il motore audio, campione per campione: niente ritardi, niente salti.</dd>
+      </div>
+      <div>
+        <dt>Accordatore</dt>
+        <dd>Usa il microfono solo mentre è aperto. Appena lo chiudi, il microfono torna a riposo.</dd>
+      </div>
+      <div>
+        <dt>Le tue impostazioni, al sicuro</dt>
+        <dd>Cerca un brano in libreria in un attimo. E con un tocco salvi una copia delle impostazioni su iCloud Drive o Google Drive, per ritrovarle tutte su un nuovo telefono o tablet.</dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<!-- 5. Rispetto -->
+<section class="respect wrap" aria-labelledby="t-rispetto">
+  <h2 id="t-rispetto" class="visually-hidden">Come ti tratta RePitch</h2>
+  <p class="respect-big">Gratuita. Senza account. Senza pubblicità. Funziona offline. <span>Non raccoglie nessun dato.</span></p>
+  <p class="respect-small">I tuoi brani restano sul tuo dispositivo. <a href="privacy.html">Leggi la privacy</a></p>
+</section>
+
+<!-- 6. Sostieni -->
+<section id="sostieni" class="support wrap" aria-labelledby="t-sostieni">
+  <div class="plaque">
+    <h2 id="t-sostieni">Sostieni RePitch</h2>
+    <p class="support-text">RePitch è gratuita e sviluppata in modo indipendente. Se ti è utile nello studio, puoi sostenerne lo sviluppo con una donazione libera.</p>
+    <a class="btn btn-solid btn-big" href="https://paypal.me/matteofrige459" data-donate rel="noopener">Dona con PayPal</a>
+    <p class="pencil">Grazie: ogni contributo va nel tempo dedicato a RePitch.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot wrap">
+  <a class="brand brand-small" href="./" aria-label="RePitch, pagina iniziale">
+    <picture>
+      <source srcset="assets/logo-dark.svg" media="(prefers-color-scheme: dark)">
+      <img src="assets/logo.svg" alt="RePitch" width="1343" height="560" loading="lazy">
+    </picture>
+  </a>
+  <p>© 2026 RePitch</p>
+  <nav aria-label="Note legali e contatti">
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Supporto</a>
+    <a class="lang-switch" href="en/" lang="en" hreflang="en">English</a>
+    <a href="mailto:info@re-pitch.it" data-contact>Contatti</a>
+  </nav>
+</footer>
+
+</body>
+</html>

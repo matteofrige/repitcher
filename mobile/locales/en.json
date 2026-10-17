@@ -1,0 +1,9 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "RePitch",
+    "NSMicrophoneUsageDescription": "RePitch uses the microphone only for the tuner, to recognise the note you play."
+  },
+  "android": {
+    "app_name": "RePitch"
+  }
+}

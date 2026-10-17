@@ -1,0 +1,260 @@
+/* RePitch — carta da musica invecchiata, inchiostro d'incisione, un solo accento blu Henle. */
+@font-face { font-family: "IM Fell English"; src: url(assets/fonts/fell.ttf) format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IM Fell English"; src: url(assets/fonts/fell-italic.ttf) format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Libre Caslon Text"; src: url(assets/fonts/caslon.ttf) format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Libre Caslon Text"; src: url(assets/fonts/caslon-italic.ttf) format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Libre Caslon Text"; src: url(assets/fonts/caslon-bold.ttf) format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Noto Music"; src: url(assets/fonts/music.ttf) format("truetype"); font-display: block; }
+
+:root {
+  --paper: #F1E6C8;
+  --plate: #E8D9B3;
+  --ink: #2A2016;
+  --sepia: #6B5A44;
+  --blue: #2C4A7C;
+  --on-blue: #F1E6C8;
+  --pencil: #5E5A54;
+  --rule: rgba(42, 32, 22, .38);
+  --rule-soft: rgba(42, 32, 22, .18);
+  --shadow: rgba(42, 32, 22, .5);
+  --grain: url(assets/grain-light.webp);
+
+  --fell: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --caslon: "Libre Caslon Text", "Iowan Old Style", Georgia, serif;
+  --gutter: clamp(16px, 4vw, 48px);
+  --max: 1240px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1B1510;
+    --plate: #261E16;
+    --ink: #EBDDBA;
+    --sepia: #B5A584;
+    --blue: #9DB4DD;
+    --on-blue: #1B1510;
+    --pencil: #A39C90;
+    --rule: rgba(235, 221, 186, .34);
+    --rule-soft: rgba(235, 221, 186, .16);
+    --shadow: rgba(0, 0, 0, .75);
+    --grain: url(assets/grain-dark.webp);
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 24px; scrollbar-color: var(--sepia) var(--paper); scrollbar-width: thin; }
+body {
+  margin: 0;
+  background: var(--paper) var(--grain) repeat top left / 512px 512px;
+  color: var(--ink);
+  font: 400 1.0625rem/1.7 var(--caslon);
+  font-variant-numeric: lining-nums;
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+}
+img, svg { display: block; max-width: 100%; height: auto; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.wrap { width: 100%; max-width: calc(var(--max) + 2 * var(--gutter)); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* Superfici del browser, tematizzate */
+::selection { background: var(--blue); color: var(--on-blue); }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 3px; }
+a { color: var(--blue); text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; text-decoration-color: color-mix(in srgb, var(--blue) 55%, transparent); }
+a:hover { text-decoration-thickness: 2px; text-decoration-color: currentColor; }
+.skip { position: absolute; left: var(--gutter); top: -60px; background: var(--blue); color: var(--on-blue); padding: .6em 1em; z-index: 10; text-decoration: none; }
+.skip:focus { top: 12px; }
+
+h1, h2, h3 { font-family: var(--fell); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+p { margin: 0; }
+
+/* --- Testata -------------------------------------------------------------- */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 20px 8px; }
+.brand { display: block; width: clamp(120px, 14vw, 152px); text-decoration: none; }
+.brand img { width: 100%; }
+.brand-small { width: 104px; }
+.top nav { display: flex; gap: clamp(14px, 3vw, 32px); font-size: .98rem; }
+
+/* Selettore di lingua: nella testata sparisce sugli schermi stretti (resta nel piede). */
+.lang-switch { letter-spacing: .06em; font-size: .88em; font-variant-caps: all-small-caps; }
+@media (max-width: 560px) { .top .lang-top { display: none; } }
+
+/* --- Bottoni ---------------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 52px; padding: .55em 1.6em;
+  font: 400 1.125rem/1.2 var(--caslon); letter-spacing: .01em;
+  border: 0; border-radius: 12px; cursor: pointer; text-decoration: none;
+  transition: transform .35s var(--ease), box-shadow .35s var(--ease), background-color .2s;
+}
+.btn-solid { background: var(--blue); color: var(--on-blue); box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 10px 22px -10px var(--shadow); }
+.btn-solid:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 16px 28px -12px var(--shadow); text-decoration: none; }
+.btn-solid:active { transform: translateY(0); box-shadow: 0 6px 12px -8px var(--shadow); }
+.btn-solid:focus-visible { outline-color: var(--ink); }
+.btn-big { min-height: 68px; padding-inline: 2.4em; font-size: clamp(1.25rem, 3vw, 1.5rem); border-radius: 14px; }
+
+/* Stato "presto disponibile": un'etichetta, non un download */
+.badge { display: inline-flex; flex-direction: column; justify-content: center; min-height: 52px; padding: .45em 1.3em; border: 1px solid var(--ink); border-radius: 12px; line-height: 1.2; color: var(--ink); cursor: default; user-select: none; }
+.badge-small { font-style: italic; font-size: .8rem; color: var(--sepia); }
+.badge-big { font-size: 1.05rem; }
+
+/* --- Apertura -------------------------------------------------------------- */
+.hero { display: grid; gap: clamp(32px, 6vw, 72px); padding-block: clamp(32px, 6vw, 72px) clamp(64px, 10vw, 128px); align-items: start; }
+.hero h1 { font-size: clamp(3.25rem, 11.5vw, 6rem); line-height: .96; letter-spacing: -.02em; max-width: 9em; }
+.hero-staff { margin-top: clamp(28px, 4vw, 44px); width: 100%; max-width: 640px; color: var(--ink); overflow: visible; }
+.hero-staff .clef, .sign-staff .clef { font-family: "Noto Music", serif; }
+.hero-staff .staff-label, .sign-staff .staff-label { font-family: var(--caslon); font-style: italic; }
+.lead { margin-top: clamp(24px, 3vw, 36px); font-size: clamp(1.125rem, 2.2vw, 1.3125rem); line-height: 1.6; max-width: 36em; color: var(--ink); }
+.actions { margin-top: clamp(28px, 4vw, 40px); display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: stretch; }
+.hero-phone { justify-self: center; width: min(78%, 360px); }
+
+/* Cornice sottile incisa */
+.phone { margin: 0; }
+.frame {
+  border-radius: 40px; overflow: hidden; background: var(--plate);
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 0 0 8px var(--paper),
+    0 0 0 9px var(--rule),
+    0 36px 56px -26px var(--shadow),
+    0 14px 24px -14px var(--shadow);
+}
+.frame img { width: 100%; height: auto; aspect-ratio: 1000 / 2166; }
+
+/* L'unico movimento d'autore: la nota sale fino all'altezza giusta */
+@keyframes rise { from { transform: translateY(30px); } to { transform: translateY(0); } }
+@keyframes ink-in { from { opacity: 0; } to { opacity: 1; } }
+.hero-staff .note-rise { animation: rise 1.7s var(--ease) .45s both; }
+.hero-staff .gliss { animation: ink-in .9s ease-out 1.5s both; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-staff .note-rise, .hero-staff .gliss { animation: none; }
+  html { scroll-behavior: auto; }
+  .btn { transition: none; }
+}
+
+@media (min-width: 900px) {
+  .hero { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); column-gap: clamp(48px, 7vw, 112px); padding-top: clamp(40px, 5vw, 72px); }
+  .hero-phone { width: 100%; max-width: 380px; justify-self: end; margin-top: 16px; transform: translateY(8px); }
+}
+
+/* --- Sezioni a fascia (piastra) ------------------------------------------------ */
+.band { background: color-mix(in srgb, var(--plate) 82%, transparent); border-block: 1px solid var(--rule-soft); }
+.section-title { font-size: clamp(2.25rem, 6.5vw, 3.75rem); line-height: 1.02; }
+
+/* --- Ascolta il tuo La --------------------------------------------------------------------------- */
+.sign { padding-block: clamp(56px, 9vw, 112px); }
+.sign h2 { font-size: clamp(2.5rem, 8vw, 4.5rem); line-height: 1; }
+.sign-staff { width: 100%; max-width: 900px; margin: clamp(20px, 4vw, 40px) 0 0; color: var(--ink); overflow: visible; }
+.sign-ui { display: grid; gap: clamp(24px, 4vw, 48px); margin-top: clamp(16px, 3vw, 32px); align-items: center; }
+.sign-value { display: flex; align-items: baseline; gap: .25em; line-height: .9; }
+.sign-value output { font-family: var(--caslon); font-variant-numeric: lining-nums tabular-nums; font-size: clamp(4.5rem, 20vw, 8rem); letter-spacing: -.03em; min-width: 3ch; }
+.sign-value .unit { font-family: var(--fell); font-size: clamp(1.5rem, 5vw, 2.25rem); color: var(--sepia); }
+.sign-controls { display: grid; gap: 22px; max-width: 640px; }
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+legend { padding: 0; margin-bottom: 10px; font-size: .95rem; color: var(--sepia); }
+
+/* Segmenti come nell'app: la scelta attiva è piena di blu */
+.seg { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--paper) 60%, transparent); }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { display: flex; align-items: center; justify-content: center; min-height: 52px; font-variant-numeric: lining-nums tabular-nums; font-size: 1.125rem; cursor: pointer; border-top: 1px solid var(--rule-soft); border-left: 1px solid var(--rule-soft); transition: background-color .2s, color .2s; user-select: none; }
+.seg label:nth-of-type(-n+4) { border-top: 0; }
+.seg label:nth-of-type(4n+1) { border-left: 0; }
+.seg label:hover { background: color-mix(in srgb, var(--blue) 12%, transparent); }
+.seg input:checked + label { background: var(--blue); color: var(--on-blue); }
+.seg input:focus-visible + label { outline: 2px solid var(--ink); outline-offset: -4px; border-radius: 6px; }
+@media (min-width: 640px) {
+  .seg { grid-template-columns: repeat(8, 1fr); }
+  .seg label { border-top: 0; border-left: 1px solid var(--rule-soft); }
+  .seg label:first-of-type { border-left: 0; }
+}
+
+.slider-row { display: grid; gap: 8px; }
+.slider-row label { font-size: .95rem; color: var(--sepia); }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 44px; background: transparent; cursor: pointer; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 2px; background: var(--ink); }
+input[type=range]::-moz-range-track { height: 2px; background: var(--ink); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 23px; margin-top: -10.5px; border-radius: 50%; background: var(--blue); border: 0; box-shadow: 0 6px 10px -6px var(--shadow); transform: rotate(-20deg); }
+input[type=range]::-moz-range-thumb { width: 32px; height: 23px; border-radius: 50%; background: var(--blue); border: 0; box-shadow: 0 6px 10px -6px var(--shadow); }
+input[type=range]:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.btn-play { justify-self: start; min-width: 200px; }
+.no-js .js-only { display: none; }
+.sign-line { margin-top: clamp(32px, 5vw, 56px); max-width: 34em; font-family: var(--fell); font-size: clamp(1.4rem, 3.4vw, 1.9rem); line-height: 1.35; font-style: italic; color: var(--ink); }
+@media (min-width: 900px) {
+  .sign-ui { grid-template-columns: auto 1fr; column-gap: clamp(48px, 8vw, 120px); }
+}
+
+/* --- Come funziona --------------------------------------------------------------------------- */
+.steps { padding-block: clamp(72px, 12vw, 160px) clamp(32px, 6vw, 72px); }
+.steps .section-title { margin-bottom: clamp(40px, 7vw, 88px); }
+.step { display: grid; gap: 28px; margin-bottom: clamp(64px, 11vw, 140px); align-items: center; }
+.step h3 { font-size: clamp(1.9rem, 5vw, 2.75rem); line-height: 1.08; margin-bottom: 16px; }
+.step-text p { max-width: 34em; }
+.step .phone { width: min(78%, 340px); justify-self: center; position: relative; }
+.pencil { font-style: italic; color: var(--pencil); transform: rotate(-1.5deg); transform-origin: left center; font-size: 1.1rem; line-height: 1.4; }
+.pencil-note { margin-top: 28px; text-align: center; transform-origin: center; }
+.pencil-note::before { content: ""; display: block; width: 1px; height: 22px; margin: 0 auto 8px; background: var(--pencil); opacity: .7; transform: rotate(8deg); }
+@media (min-width: 900px) {
+  .step { grid-template-columns: repeat(12, 1fr); column-gap: 24px; }
+  .step-text { align-self: center; }
+  .step-a .step-text { grid-column: 1 / span 5; grid-row: 1; }
+  .step-a .phone { grid-column: 7 / span 4; grid-row: 1; width: 100%; justify-self: stretch; }
+  .step-b .phone { grid-column: 2 / span 4; grid-row: 1; width: 100%; justify-self: stretch; }
+  .step-b .step-text { grid-column: 7 / span 5; grid-row: 1; }
+  .step-c .step-text { grid-column: 2 / span 5; grid-row: 1; }
+  .step-c .phone { grid-column: 8 / span 4; grid-row: 1; width: 100%; justify-self: stretch; }
+  .step-b { margin-block: clamp(80px, 10vw, 140px); }
+  .step-b .pencil-note { position: absolute; left: 100%; bottom: 14%; width: 11em; margin: 0 0 0 28px; text-align: left; transform: rotate(-3deg); }
+  .step-b .pencil-note::before { display: none; }
+  .step-b .pencil-note::after { content: ""; position: absolute; right: 100%; top: 50%; width: 36px; height: 1px; margin-right: 6px; background: var(--pencil); opacity: .7; }
+}
+
+/* --- Strumenti per lo studio ---------------------------------------------------------------------- */
+.tools { padding-block: clamp(56px, 9vw, 112px); }
+.ledger { margin: clamp(32px, 5vw, 56px) 0 0; border-top: 1px solid var(--rule); }
+.ledger > div { display: grid; gap: 8px 48px; padding-block: clamp(22px, 3vw, 34px); border-bottom: 1px solid var(--rule-soft); }
+.ledger dt { font-family: var(--fell); font-size: clamp(1.6rem, 3.6vw, 2.25rem); line-height: 1.1; }
+.ledger dd { margin: 0; max-width: 34em; }
+@media (min-width: 900px) { .ledger > div { grid-template-columns: 5fr 7fr; align-items: baseline; } }
+
+/* --- Rispetto ---------------------------------------------------------------------------------------- */
+.respect { padding-block: clamp(80px, 13vw, 176px); }
+.respect-big { font-family: var(--fell); font-size: clamp(2.25rem, 7.6vw, 5.25rem); line-height: 1.08; letter-spacing: -.015em; max-width: 14em; text-wrap: balance; }
+.respect-big span { color: var(--blue); }
+.respect-small { margin-top: clamp(24px, 4vw, 40px); color: var(--sepia); }
+
+/* --- Sostieni ----------------------------------------------------------------------------------------- */
+.support { padding-block: 0 clamp(72px, 12vw, 160px); }
+.plaque {
+  position: relative; text-align: center; padding: clamp(44px, 9vw, 112px) clamp(20px, 6vw, 80px);
+  background: color-mix(in srgb, var(--plate) 78%, transparent);
+  border: 1px solid var(--rule); border-radius: 6px;
+  box-shadow: 0 0 0 7px var(--paper), 0 0 0 8px var(--rule), 0 40px 60px -36px var(--shadow);
+}
+.plaque h2 { font-size: clamp(2.75rem, 9vw, 5.5rem); line-height: 1; }
+.support-text { max-width: 36em; margin: clamp(20px, 3vw, 32px) auto clamp(32px, 5vw, 48px); font-size: clamp(1.125rem, 2.2vw, 1.25rem); }
+.plaque .pencil { margin-top: 28px; transform-origin: center; transform: rotate(-1deg); }
+
+/* --- Piede ------------------------------------------------------------------------------------------------------- */
+.foot { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding-block: 28px 48px; border-top: 1px solid var(--rule-soft); font-size: .95rem; color: var(--sepia); }
+.foot nav { display: flex; gap: 24px; margin-left: auto; }
+
+/* --- Pagina privacy ------------------------------------------------------------------------------------------- */
+.doc { padding-block: clamp(32px, 6vw, 72px) clamp(56px, 9vw, 112px); }
+.doc > * { max-width: 40rem; }
+.doc h1 { font-size: clamp(3rem, 9vw, 4.5rem); line-height: 1; }
+.doc h2 { font-size: clamp(1.6rem, 4vw, 2.1rem); margin: clamp(32px, 5vw, 48px) 0 10px; }
+.doc-date { color: var(--sepia); font-style: italic; margin-top: 10px; }
+.doc-lead { font-family: var(--fell); font-size: clamp(1.4rem, 3.5vw, 1.8rem); line-height: 1.35; margin-top: clamp(24px, 4vw, 36px); }
+
+/* --- Domande frequenti (pagina supporto) ----------------------------------------------------------------------- */
+.faq { border-top: 1px solid var(--rule); max-width: 40rem; }
+.faq details { border-bottom: 1px solid var(--rule-soft); padding-block: 14px; }
+.faq summary { cursor: pointer; font-family: var(--fell); font-size: clamp(1.2rem, 3vw, 1.45rem); line-height: 1.25; }
+.faq summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
+.faq details p { margin-top: 10px; }
+
+@media (max-width: 420px) {
+  .actions > * { width: 100%; }
+  .badge { align-items: flex-start; }
+}
