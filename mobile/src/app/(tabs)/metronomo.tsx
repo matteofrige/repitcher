@@ -1,14 +1,17 @@
+import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import * as RepitchAudio from '../../../modules/repitch-audio';
 import { s } from '../../i18n';
 import { BeatDots } from '../../components/BeatDots';
 import { BeatsPerBarPicker } from '../../components/BeatsPerBarPicker';
-import { Stepper } from '../../components/Controls';
+import { Button, Stepper } from '../../components/Controls';
 import { Toggle } from '../../components/Toggle';
 import { Paper } from '../../components/Paper';
 import { Slider } from '../../components/Slider';
 import { setTools, useTools } from '../../lib/library';
+import { usePlayingTrackId } from '../../lib/player';
 import { showAlert, showPrompt } from '../../lib/promptHost';
 import { setMetronome, toggleMetronome, useMetronome } from '../../lib/metronome';
 import { useColors } from '../../theme';
@@ -21,7 +24,8 @@ const clampBpm = (n: number) => Math.min(MAX_BPM, Math.max(MIN_BPM, n));
 
 export default function MetronomeScreen() {
   const colors = useColors();
-  const { bpm, beatsPerBar, volume, flash } = useTools();
+  const { bpm, beatsPerBar, volume, flash, follow } = useTools();
+  const playingId = usePlayingTrackId();
   const { running, activeBeat } = useMetronome();
 
   const askBpm = async () => {
@@ -130,6 +134,30 @@ export default function MetronomeScreen() {
               {running ? s.common.stop : s.common.start}
             </T>
           </Pressable>
+
+          {RepitchAudio.beatFollowAvailable() ? (
+            <View
+              style={{
+                borderWidth: StyleSheet.hairlineWidth * 2,
+                borderColor: colors.rule,
+                borderRadius: 12,
+                padding: 16,
+                gap: 8,
+              }}>
+              <T variant="headline">{s.metronome.followCardTitle}</T>
+              <T variant="footnote">{s.metronome.followCardText}</T>
+              {follow ? (
+                <T variant="footnote" tone="tint">
+                  {s.metronome.followCardOn}
+                </T>
+              ) : null}
+              {playingId ? (
+                <Button kind="secondary" label={s.metronome.followCardOpen} onPress={() => router.push('/player' as Href)} />
+              ) : (
+                <Button kind="secondary" label={s.metronome.followCardLibrary} onPress={() => router.navigate('/libreria' as Href)} />
+              )}
+            </View>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     </Paper>

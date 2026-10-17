@@ -254,6 +254,11 @@ export const core = {
   },
 
   metronome: {
+    followCardTitle: "Metronomo sul brano",
+    followCardText: "Click e lampeggio che seguono il ritmo del brano che stai ascoltando, anche nei rallentando e accelerando. Si attiva dal player.",
+    followCardOpen: "Apri nel player",
+    followCardLibrary: "Scegli un brano dalla Libreria",
+    followCardOn: "Attivo sul brano in riproduzione.",
     title: 'Metronomo',
     dockLabel: (bpm: number) => `Metronomo ${bpm} BPM`,
     stopA11y: 'Ferma il metronomo',

@@ -72,9 +72,9 @@ function BeatFollowSection({ bpm }: { bpm: number | null }) {
     <View
       style={{
         gap: 4,
-        paddingTop: 14,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: colors.rule,
+        paddingBottom: 14,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.rule,
       }}>
       <View style={row}>
         <T variant="headline" accessibilityRole="header" style={{ flex: 1 }}>
@@ -257,6 +257,8 @@ export default function PlayerScreen() {
           ) : null}
         </View>
 
+        <BeatFollowSection bpm={track.beats?.valid ? track.beats.bpm : null} />
+
         <View
           style={{
             gap: 2,
@@ -309,7 +311,6 @@ export default function PlayerScreen() {
           {formatResultLine(tuning, myLa, sourceHzOf(track))}
         </T>
 
-        <BeatFollowSection bpm={track.beats?.valid ? track.beats.bpm : null} />
       </ScrollView>
       <View
         style={{

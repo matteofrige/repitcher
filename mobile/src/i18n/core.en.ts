@@ -238,6 +238,11 @@ export const core: CoreStrings = {
   },
 
   metronome: {
+    followCardTitle: "Metronome on the track",
+    followCardText: "Clicks and flashes that follow the rhythm of the track you're playing, through slow-downs and speed-ups. Turn it on from the player.",
+    followCardOpen: "Open in the player",
+    followCardLibrary: "Choose a track from the Library",
+    followCardOn: "On for the track that is playing.",
     title: 'Metronome',
     dockLabel: (bpm: number) => `Metronome ${bpm} BPM`,
     stopA11y: 'Stop the metronome',
