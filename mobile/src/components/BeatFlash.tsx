@@ -64,7 +64,7 @@ export function BeatFlash() {
     return () => sub.remove();
   }, [enabled, beats, opacity]);
 
-  useFrameCallback(() => {
+  const frame = useFrameCallback(() => {
     'worklet';
     const list = beats.get();
     const now = Date.now() + LEAD_MS;
@@ -79,7 +79,11 @@ export function BeatFlash() {
       break;
     }
     if (opacity.get() !== value) opacity.set(value);
-  }, enabled);
+  }, false);
+  // The second argument of useFrameCallback is only read on mount: (de)activate it explicitly.
+  useEffect(() => {
+    frame.setActive(enabled);
+  }, [enabled, frame]);
 
   const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.tint }, style]} />;
