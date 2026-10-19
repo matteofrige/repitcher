@@ -7,7 +7,8 @@ RePitch is a practice tool for musicians (students, amateurs, choirs, orchestral
 - Library: import audio files; RePitch detects each track's reference A on the device and aligns it to yours.
 - Player: per-track override (semitones/cents), saved per track; playback continues with the screen locked.
 - Playlists: create, rename, delete, reorder (drag & drop).
-- Metronome and Tuner (the tuner uses the microphone, processed only on the device, never recorded or sent).
+- Metronome and Tuner (the tuner uses the microphone, processed only on the device, never recorded or sent). The tuner offers historical temperaments (Werckmeister, Vallotti, meantone…).
+- Metronome on the track (new in 1.1.0): in the Player, a click and flash that follow the beats of the playing track. The beats are found on the device by a small open-source neural network (Beat This!, MIT licence) run with Core ML; nothing is uploaded.
 
 3. HOW TO TEST
 No login or setup needed. Sample files (synthesised by us, public-domain melody): https://re-pitch.it/samples/repitch-samples.zip
@@ -16,14 +17,16 @@ No login or setup needed. Sample files (synthesised by us, public-domain melody)
 - Tuning tab: set "Your instrument’s A" (e.g. 442 Hz) and transposition; tap a track to play it at that tuning.
 - In the Player, change semitones/cents for that track only.
 - Playlists tab: create a playlist, add both tracks, tap Edit to reorder by dragging.
-- Metronome and Tuner tabs: tap Start (the tuner asks for microphone permission).
+- In the Player, turn on "Metronome on the track": after a short on-device analysis the click follows the music.
+- Metronome and Tuner tabs: tap Start (the tuner asks for microphone permission); in the Tuner, tap Temperament to choose one.
 Individual files are also at https://re-pitch.it/samples/minuet-a440.m4a and https://re-pitch.it/samples/minuet-a432.m4a
 
 4. EXTERNAL SERVICES
-None. No backend, no analytics, no ads, no AI services, no payment processor, no third-party SDKs that collect data. All audio processing happens on the device (open-source Signalsmith Stretch library, MIT licence). The only network use is opening our website (privacy policy) and the App Store rating sheet; feedback opens the Mail app.
+None. No backend, no analytics, no ads, no AI services, no payment processor, no third-party SDKs that collect data. All audio processing happens on the device (open-source Signalsmith Stretch library and the Beat This! beat-tracking model, both MIT licence). The only network use is opening our website (privacy policy) and the App Store rating sheet; feedback opens the Mail app.
 
 5. REGIONAL DIFFERENCES
 None. The app works the same in all regions. The interface is in Italian on Italian devices and in English everywhere else.
 
 6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
 Not applicable. The app ships no music content; users play files they import themselves. Bundled fonts are under the SIL Open Font License, credited in the app (About).
+
