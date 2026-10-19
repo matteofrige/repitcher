@@ -15,7 +15,7 @@ Ogni brano al tuo La
 ### Promotional text [157/170]
 Porta ogni registrazione al La del tuo strumento: 415, 432, 440, 442… RePitch rileva l’accordatura di ogni brano e li mette d’accordo. Gratis, senza account.
 
-### Description [2195/4000]
+### Description [3033/4000]
 Suoni il flauto dolce con un ensemble barocco a 415? Canti in un coro che si accorda a 442? Studi con registrazioni che non sono mai esattamente al tuo La? RePitch porta ogni brano all’intonazione del tuo strumento, in tempo reale e senza toccare il tempo.
 
 IMPOSTA IL TUO LA, UNA VOLTA SOLA
@@ -27,12 +27,16 @@ Ogni registrazione ha un’accordatura sua. RePitch analizza i brani sul disposi
 UN’INTONAZIONE TUTTA SUA, BRANO PER BRANO
 Un brano ha bisogno di qualcosa di diverso? Aprilo nel player e dagli semitoni e cents tutti suoi. Gli altri restano sull’intonazione generale, e quel brano lo ritrovi com’era alla prossima apertura.
 
+UN METRONOMO CHE SEGUE IL BRANO
+Il click e il lampo sullo schermo seguono i battiti del brano che stai ascoltando, anche quando la musica rallenta o accelera. I battiti vengono trovati sul dispositivo da una rete neurale open source (Beat This!, licenza MIT): la prima analisi di un brano richiede qualche secondo, poi viene ricordata. Se il risultato non è giusto puoi correggerlo battendo il tempo a mano, oppure dimezzare o raddoppiare il tempo, e scegliere quanti battiti ha la battuta, con l’accento sul «1».
+
 PENSATA PER LO STUDIO E LE PROVE
 • Libreria con ricerca: importa i tuoi file audio dall’app File
 • Playlist per lezioni, prove e concerti: ogni brano porta con sé la propria intonazione
 • Riproduzione anche a schermo bloccato
-• Metronomo preciso, generato dentro il motore audio
-• Accordatore cromatico con nota di riferimento accordata sul tuo La
+• Metronomo preciso, generato dentro il motore audio: a tempo fisso o sul brano, con lo schermo sempre acceso
+• Accordatore cromatico con lancetta grande e colorata (verde se intonato, rossa se lontano), leggibile anche da lontano, sul leggio
+• Temperamenti storici nell’accordatore: equabile, pitagorico, mesotonico, Werckmeister, Kirnberger, Vallotti, Young, naturale, o uno tutto tuo; la nota di riferimento segue il temperamento e il tuo La
 • Funziona su iPhone e iPad, in italiano e in inglese
 • Backup delle impostazioni su iCloud Drive o dove preferisci, per ritrovarle su un nuovo telefono
 
@@ -48,8 +52,15 @@ RISPETTO PER TE E PER LA TUA MUSICA
 
 RePitch è fatta da una sola persona, per i musicisti che studiano con le registrazioni. Se hai domande o suggerimenti, scrivici dalla pagina Informazioni dell’app.
 
-### Keywords [95/100]
-intonazione,accordatore,metronomo,barocco,415,442,432,semitoni,cents,coro,musicisti,pitch,tuner
+### Keywords [92/100]
+intonazione,accordatore,metronomo,barocco,415,442,432,semitoni,cents,coro,temperamento,tuner
+
+### What's New (1.1.0) [649/4000]
+• Metronomo sul brano: click e lampo sullo schermo seguono i battiti del brano, anche se rallenti o acceleri la musica. Puoi correggerli battendo il tempo, dimezzare o raddoppiare il tempo e scegliere i battiti per battuta
+• Accordatore: temperamenti storici (pitagorico, mesotonico, Werckmeister, Kirnberger, Vallotti, Young, naturale) e uno personalizzato, con scelta della tonica; la nota di riferimento segue il temperamento
+• Lancetta dell’accordatore molto più grande e colorata, leggibile da lontano
+• Lo schermo resta acceso mentre il metronomo è attivo e mentre l’accordatore è aperto
+• Interfaccia più compatta: semitoni e cents affiancati
 
 ### What's New (1.0) [281/4000]
 Prima versione di RePitch.
@@ -93,10 +104,10 @@ Contact: info@re-pitch.it
 ### Title [25/30]
 RePitch: La e accordatore
 
-### Short description [74/80]
-Ogni brano al tuo La: intonazione, accordatore e metronomo. Senza account.
+### Short description [69/80]
+Ogni brano al tuo La, con metronomo che segue il brano e accordatore.
 
-### Full description [2173/4000]
+### Full description [3011/4000]
 Suoni il flauto dolce con un ensemble barocco a 415? Canti in un coro che si accorda a 442? Studi con registrazioni che non sono mai esattamente al tuo La? RePitch porta ogni brano all’intonazione del tuo strumento, in tempo reale e senza toccare il tempo.
 
 IMPOSTA IL TUO LA, UNA VOLTA SOLA
@@ -108,12 +119,16 @@ Ogni registrazione ha un’accordatura sua. RePitch analizza i brani sul disposi
 UN’INTONAZIONE TUTTA SUA, BRANO PER BRANO
 Un brano ha bisogno di qualcosa di diverso? Aprilo nel player e dagli semitoni e cents tutti suoi. Gli altri restano sull’intonazione generale, e quel brano lo ritrovi com’era alla prossima apertura.
 
+UN METRONOMO CHE SEGUE IL BRANO
+Il click e il lampo sullo schermo seguono i battiti del brano che stai ascoltando, anche quando la musica rallenta o accelera. I battiti vengono trovati sul dispositivo da una rete neurale open source (Beat This!, licenza MIT): la prima analisi di un brano richiede qualche secondo, poi viene ricordata. Se il risultato non è giusto puoi correggerlo battendo il tempo a mano, oppure dimezzare o raddoppiare il tempo, e scegliere quanti battiti ha la battuta, con l’accento sul «1».
+
 PENSATA PER LO STUDIO E LE PROVE
 • Libreria con ricerca: importa i tuoi file audio dal gestore file
 • Playlist per lezioni, prove e concerti: ogni brano porta con sé la propria intonazione
 • Riproduzione anche a schermo bloccato
-• Metronomo preciso, generato dentro il motore audio
-• Accordatore cromatico con nota di riferimento accordata sul tuo La
+• Metronomo preciso, generato dentro il motore audio: a tempo fisso o sul brano, con lo schermo sempre acceso
+• Accordatore cromatico con lancetta grande e colorata (verde se intonato, rossa se lontano), leggibile anche da lontano, sul leggio
+• Temperamenti storici nell’accordatore: equabile, pitagorico, mesotonico, Werckmeister, Kirnberger, Vallotti, Young, naturale, o uno tutto tuo; la nota di riferimento segue il temperamento e il tuo La
 • Funziona su telefono e tablet, in italiano e in inglese
 • Backup delle impostazioni su Google Drive o dove preferisci, per ritrovarle su un nuovo telefono
 

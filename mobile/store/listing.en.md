@@ -15,7 +15,7 @@ Every track at your A
 ### Promotional text [149/170]
 Bring any recording to your instrument’s A: 415, 432, 440, 442… RePitch detects each track’s tuning and matches it to yours. Free, no account needed.
 
-### Description [2043/4000]
+### Description [2878/4000]
 Do you play in a Baroque ensemble at A=415? Sing in a choir tuned to 442? Practise with recordings that are never quite at your A? RePitch brings every track to your instrument’s pitch, in real time and without touching the tempo.
 
 SET YOUR A, ONCE
@@ -27,12 +27,16 @@ Every recording has a tuning of its own. RePitch analyses your tracks on the dev
 OWN TUNING, TRACK BY TRACK
 Does one piece need something different? Open it in the player and give it its own semitones and cents. The others stay on the global tuning, and you find that track just as you left it next time.
 
+A METRONOME THAT FOLLOWS THE TRACK
+The click and a flash on the screen follow the beats of the track you are playing, even when the music slows down or speeds up. The beats are found on your device by an open-source neural network (Beat This!, MIT licence): the first analysis of a track takes a few seconds and is then remembered. If the result is off, you can correct it by tapping along, or halve or double the tempo, and choose how many beats make a bar, with the accent on the “1”.
+
 BUILT FOR PRACTICE AND REHEARSAL
 • Searchable library: import your own audio files from the Files app
 • Playlists for lessons, rehearsals and concerts: each track keeps its own tuning
 • Playback continues with the screen locked
-• Accurate metronome, generated inside the audio engine
-• Chromatic tuner with a reference tone tuned to your A
+• Accurate metronome, generated inside the audio engine: at a fixed tempo or following the track, with the screen kept on
+• Chromatic tuner with a big, colour-coded needle (green in tune, red when far off), readable from a distance on a music stand
+• Historical temperaments in the tuner: equal, Pythagorean, meantone, Werckmeister, Kirnberger, Vallotti, Young, just intonation, or one entirely your own; the reference tone follows the temperament and your A
 • Works on iPhone and iPad, in English and Italian
 • Settings backup to iCloud Drive or wherever you like, to find them again on a new phone
 
@@ -48,8 +52,15 @@ RESPECT FOR YOU AND YOUR MUSIC
 
 RePitch is made by one person, for musicians who practise with recordings. Questions or suggestions? Write to us from the About page in the app.
 
-### Keywords [92/100]
-pitch,tuner,metronome,baroque,415,442,432,transpose,semitones,cents,choir,practice,musicians
+### Keywords [94/100]
+pitch,tuner,metronome,baroque,415,442,432,transpose,semitones,cents,choir,practice,temperament
+
+### What's New (1.1.0) [633/4000]
+• Metronome on the track: the click and a screen flash follow the beats of the track, even if you slow the music down or speed it up. You can correct them by tapping along, halve or double the tempo, and choose beats per bar
+• Tuner: historical temperaments (Pythagorean, meantone, Werckmeister, Kirnberger, Vallotti, Young, just intonation) and a fully custom one, with a choice of tonic; the reference tone follows the temperament
+• Much bigger, colour-coded tuner needle, readable from a distance
+• The screen stays on while the metronome runs and while the tuner is open
+• More compact interface: semitones and cents side by side
 
 ### What's New (1.0) [249/4000]
 The first release of RePitch.
@@ -93,10 +104,10 @@ Contact: info@re-pitch.it
 ### Title [30/30]
 RePitch: Pitch Shifter & Tuner
 
-### Short description [75/80]
-Play every track at your A. Pitch, tuner and metronome. No account, no ads.
+### Short description [68/80]
+Every track at your A, with a metronome that follows it. No account.
 
-### Full description [2017/4000]
+### Full description [2852/4000]
 Do you play in a Baroque ensemble at A=415? Sing in a choir tuned to 442? Practise with recordings that are never quite at your A? RePitch brings every track to your instrument’s pitch, in real time and without touching the tempo.
 
 SET YOUR A, ONCE
@@ -108,12 +119,16 @@ Every recording has a tuning of its own. RePitch analyses your tracks on the dev
 OWN TUNING, TRACK BY TRACK
 Does one piece need something different? Open it in the player and give it its own semitones and cents. The others stay on the global tuning, and you find that track just as you left it next time.
 
+A METRONOME THAT FOLLOWS THE TRACK
+The click and a flash on the screen follow the beats of the track you are playing, even when the music slows down or speeds up. The beats are found on your device by an open-source neural network (Beat This!, MIT licence): the first analysis of a track takes a few seconds and is then remembered. If the result is off, you can correct it by tapping along, or halve or double the tempo, and choose how many beats make a bar, with the accent on the “1”.
+
 BUILT FOR PRACTICE AND REHEARSAL
 • Searchable library: import your own audio files from your file manager
 • Playlists for lessons, rehearsals and concerts: each track keeps its own tuning
 • Playback continues with the screen locked
-• Accurate metronome, generated inside the audio engine
-• Chromatic tuner with a reference tone tuned to your A
+• Accurate metronome, generated inside the audio engine: at a fixed tempo or following the track, with the screen kept on
+• Chromatic tuner with a big, colour-coded needle (green in tune, red when far off), readable from a distance on a music stand
+• Historical temperaments in the tuner: equal, Pythagorean, meantone, Werckmeister, Kirnberger, Vallotti, Young, just intonation, or one entirely your own; the reference tone follows the temperament and your A
 • Works on phones and tablets, in English and Italian
 • Settings backup to Google Drive or wherever you like, to find them again on a new phone
 

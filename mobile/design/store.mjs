@@ -25,14 +25,14 @@ const SLIDES_IT = [
   ['02-libreria', 'libreria', 'phone-libreria-light.png', 'Il La di ogni brano, trovato da solo', 'RePitch ascolta il brano e ne rileva l’accordatura, offline.'],
   ['03-player', 'player', 'phone-player-light.png', 'Trasporta solo il brano che vuoi', 'Semitoni e cents per singolo brano, salvati per sempre.'],
   ['04-playlist', 'playlist', 'phone-playlist-dettaglio-light.png', 'Playlist per lezioni e prove', 'Prepara la scaletta una volta, suona ogni volta.'],
-  ['05-metronomo', 'metronomo', 'phone-metronomo-light.png', 'Metronomo e accordatore', 'Precisi al campione, sempre a portata di mano.'],
+  ['05-metronomo', 'metronomo', 'phone-metronomo-light.png', 'Metronomo e accordatore', 'Il click segue il brano. L’accordatore conosce i temperamenti storici.'],
 ];
 const EN_TEXT = [
   ['Every track at your A', 'Set your instrument’s tuning: RePitch adapts all your music.'],
   ['Each track’s A, found for you', 'RePitch listens to the track and detects its tuning, offline.'],
   ['Transpose just the track you want', 'Semitones and cents per track, saved for good.'],
   ['Playlists for lessons and rehearsals', 'Build the setlist once, play it every time.'],
-  ['Metronome and tuner', 'Sample-accurate, always at hand.'],
+  ['Metronome and tuner', 'A click that follows the track, a tuner that knows historical temperaments.'],
 ];
 const SLIDES = EN ? SLIDES_IT.map((s, i) => [s[0], s[1], s[2], ...EN_TEXT[i]]) : SLIDES_IT;
 const t = THEMES.light;
