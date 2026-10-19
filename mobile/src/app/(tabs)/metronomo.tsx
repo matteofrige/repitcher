@@ -49,7 +49,11 @@ export default function MetronomeScreen() {
 
           <View style={{ gap: 4 }}>
             <View style={styles.bpmRow}>
-              <View accessible accessibilityLabel={s.metronome.bpmA11y(bpm)} style={{ alignItems: 'center', minWidth: 110 }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${s.metronome.bpmA11y(bpm)}. ${s.metronome.setValueA11y}`}
+                onPress={() => void askBpm()}
+                style={{ alignItems: 'center', minWidth: 110 }}>
                 <Text
                   allowFontScaling
                   maxFontSizeMultiplier={1.4}
@@ -57,16 +61,27 @@ export default function MetronomeScreen() {
                   {bpm}
                 </Text>
                 <T variant="footnote">BPM</T>
+              </Pressable>
+              <View style={{ alignItems: 'center' }}>
+                <Stepper
+                  holdable
+                  minusLabel={s.metronome.bpmMinus}
+                  plusLabel={s.metronome.bpmPlus}
+                  minusDisabled={bpm <= MIN_BPM}
+                  plusDisabled={bpm >= MAX_BPM}
+                  onMinus={() => setMetronome({ bpm: clampBpm(bpm - 1) })}
+                  onPlus={() => setMetronome({ bpm: clampBpm(bpm + 1) })}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={s.metronome.setValueA11y}
+                  onPress={() => void askBpm()}
+                  style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 }}>
+                  <T variant="callout" tone="tint">
+                    {s.metronome.setValueLink}
+                  </T>
+                </Pressable>
               </View>
-              <Stepper
-                holdable
-                minusLabel={s.metronome.bpmMinus}
-                plusLabel={s.metronome.bpmPlus}
-                minusDisabled={bpm <= MIN_BPM}
-                plusDisabled={bpm >= MAX_BPM}
-                onMinus={() => setMetronome({ bpm: clampBpm(bpm - 1) })}
-                onPlus={() => setMetronome({ bpm: clampBpm(bpm + 1) })}
-              />
             </View>
             <Slider
               label={s.metronome.tempo}
@@ -76,18 +91,9 @@ export default function MetronomeScreen() {
               max={MAX_BPM}
               onChange={(v) => setMetronome({ bpm: v })}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={s.metronome.setValueA11y}
-              onPress={() => void askBpm()}
-              style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'center', paddingHorizontal: 12 }}>
-              <T variant="callout" tone="tint">
-                {s.metronome.setValueLink}
-              </T>
-            </Pressable>
           </View>
 
-          <View style={{ gap: 10 }}>
+          <View style={{ gap: 8 }}>
             <T variant="headline">{s.metronome.beatsPerBar}</T>
             <View style={styles.chips} accessibilityRole="radiogroup">
               {[1, 2, 3, 4, 5, 6].map((n) => {
@@ -184,7 +190,7 @@ function Beats({ count, active }: { count: number; active: number }) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 28 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 20 },
   bpmRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap', gap: 12 },
   chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: {

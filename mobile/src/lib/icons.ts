@@ -44,6 +44,7 @@ const MAP = {
   'arrow.down': 'arrow_downward',
   'checkmark.circle.fill': 'check_circle',
   circle: 'radio_button_unchecked',
+  checkmark: 'check',
 } as const satisfies Partial<Record<SFSymbol, AndroidSymbol>>;
 
 export type IconName = keyof typeof MAP;

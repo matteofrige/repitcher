@@ -32,20 +32,22 @@ export type NoteReading = { name: string; octave: number; cents: number; midi: n
  * Auto: the note identity comes from the A=440 grid, the deviation is measured against the
  * user's A. With a target note: the nearest octave of that pitch class, deviation vs the user's A.
  */
-export function readNote(frequency: number, refHz: number, target: number | 'auto', prevMidi: number | null = null): NoteReading {
+export function readNote(frequency: number, refHz: number, target: number | 'auto', prevMidi: number | null = null, offsets?: number[]): NoteReading {
   const midiFloat = 69 + 12 * Math.log2(frequency / refHz);
   if (target === 'auto') {
     // Nearest note relative to the user's A (with A = 415, a played 415 Hz is A, not G♯ +100).
     const nearest = nearestMidiWithHysteresis(midiFloat, prevMidi);
+    const pc = ((nearest % 12) + 12) % 12;
     return {
-      name: NOTE_NAMES[((nearest % 12) + 12) % 12],
+      name: NOTE_NAMES[pc],
       octave: Math.floor(nearest / 12) - 1,
-      cents: Math.round(100 * (midiFloat - nearest)),
+      // The note is picked on the equal grid; the deviation is measured from its tempered pitch.
+      cents: Math.round(100 * (midiFloat - nearest) - (offsets?.[pc] ?? 0)),
       midi: nearest,
     };
   }
   const k = nearestMidi(midiFloat, target);
-  return { name: NOTE_NAMES[target], octave: Math.floor(k / 12) - 1, cents: Math.round(100 * (midiFloat - k)), midi: k };
+  return { name: NOTE_NAMES[target], octave: Math.floor(k / 12) - 1, cents: Math.round(100 * (midiFloat - k) - (offsets?.[target] ?? 0)), midi: k };
 }
 
 const centsBetween = (a: number, b: number) => 1200 * Math.log2(a / b);

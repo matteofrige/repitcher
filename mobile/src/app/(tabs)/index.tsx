@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AboutButton } from '../../components/AboutButton';
 import { BrandMark } from '../../components/BrandMark';
 import { Paper } from '../../components/Paper';
-import { FineTuneControl, RefPitchControl, TranspositionControl } from '../../components/TuningControls';
+import { RefPitchControl, TranspositionAndFineControl } from '../../components/TuningControls';
 import { useGlobalTuning, useTrack } from '../../lib/library';
 import { setCurrentOverride, setGlobal, usePlayingTrackId } from '../../lib/player';
 import { NEUTRAL_TUNING, isNeutral } from '../../lib/tuning';
@@ -15,7 +15,7 @@ import { T, fonts } from '../../theme/type';
 
 function Section({ n, title, text, children }: { n: number; title: string; text: string; children: ReactNode }) {
   return (
-    <View style={{ gap: 14 }}>
+    <View style={{ gap: 10 }}>
       <View style={{ gap: 2 }}>
         <T variant="headline" accessibilityRole="header">
           {`${n}. ${title}`}
@@ -37,26 +37,24 @@ export default function TuningScreen() {
     <Paper>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <ScrollView contentContainerStyle={[styles.content, column()]}>
-          <View style={{ gap: 12 }}>
-            <View
-              accessible
-              accessibilityRole="image"
-              accessibilityLabel="RePitch"
-              style={styles.lockup}>
-              <BrandMark size={44} />
-              <T style={{ fontFamily: fonts.fell, fontSize: 28, lineHeight: 34, marginLeft: -2 }} importantForAccessibility="no">
-                RePitch
-              </T>
-            </View>
-            <View style={{ gap: 6 }}>
+          <View style={{ gap: 6 }}>
             <View style={styles.titleRow}>
-              <T variant="largeTitle" accessibilityRole="header" style={{ flex: 1 }}>
-                {s.tuning.title}
-              </T>
+              <View
+                accessible
+                accessibilityRole="image"
+                accessibilityLabel="RePitch"
+                style={styles.lockup}>
+                <BrandMark size={30} />
+                <T style={{ fontFamily: fonts.fell, fontSize: 20, lineHeight: 26, marginLeft: -2 }} importantForAccessibility="no">
+                  RePitch
+                </T>
+              </View>
               <AboutButton />
             </View>
+            <T variant="largeTitle" accessibilityRole="header">
+              {s.tuning.title}
+            </T>
             <T variant="footnote">{s.tuning.subtitle}</T>
-            </View>
           </View>
 
           {hasOverride ? (
@@ -85,11 +83,7 @@ export default function TuningScreen() {
             n={2}
             title={s.tuning.transposeTitle}
             text={s.tuning.transposeText}>
-            <TranspositionControl value={g} onChange={setGlobal} />
-          </Section>
-
-          <Section n={3} title={s.tuning.fineTitle} text={s.tuning.fineText}>
-            <FineTuneControl value={g} onChange={setGlobal} />
+            <TranspositionAndFineControl value={g} onChange={setGlobal} />
           </Section>
 
           <View style={{ alignItems: 'center' }}>
@@ -112,9 +106,9 @@ export default function TuningScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 28 },
-  lockup: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 22 },
+  lockup: { flexDirection: 'row', alignItems: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   // Stacked: the note can be long (and longer with Dynamic Type), the action sits under it.
   note: { gap: 2, alignItems: 'flex-start' },
   noteBtn: { minHeight: 44, justifyContent: 'center', paddingRight: 8 },

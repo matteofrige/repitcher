@@ -29,7 +29,7 @@ export const extras: ExtrasStrings = {
       },
       {
         title: 'For your practice',
-        text: 'Playlists for your rehearsals, playback that continues with the screen locked, plus a metronome and a tuner.',
+        text: 'Playlists for your rehearsals, playback that continues with the screen locked, plus a metronome and a tuner (with historical temperaments, if you want to tune beyond equal temperament).',
       },
     ],
   },

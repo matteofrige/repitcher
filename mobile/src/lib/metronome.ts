@@ -1,7 +1,10 @@
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSyncExternalStore } from 'react';
 
 import { getTools, setTools, type ToolsSettings } from './library';
 import * as RepitchAudio from '../../modules/repitch-audio';
+
+const KEEP_AWAKE_TAG = 'repitch-metronome';
 
 type State = { running: boolean; activeBeat: number };
 let state: State = { running: false, activeBeat: -1 };
@@ -29,6 +32,8 @@ export async function startMetronome() {
   try {
     await RepitchAudio.metronomeStart();
     set({ running: true });
+    // The screen stays on while the click runs, even from another tab.
+    void activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
   } catch (e) {
     console.warn('RePitch: metronome start failed', e);
   }
@@ -38,6 +43,7 @@ export async function stopMetronome() {
   try {
     await RepitchAudio.metronomeStop();
   } finally {
+    void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
     if (offTimer) clearTimeout(offTimer);
     if (onTimer) clearTimeout(onTimer);
     set({ running: false, activeBeat: -1 });

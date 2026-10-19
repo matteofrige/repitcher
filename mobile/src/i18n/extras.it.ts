@@ -29,7 +29,7 @@ export const extras = {
       },
       {
         title: 'Per le tue prove',
-        text: 'Playlist per organizzare le prove, riproduzione anche a schermo bloccato, più metronomo e accordatore.',
+        text: 'Playlist per organizzare le prove, riproduzione anche a schermo bloccato, più metronomo e accordatore (con i temperamenti storici, se vuoi accordare oltre l’equabile).',
       },
     ],
   },

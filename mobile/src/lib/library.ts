@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import * as RepitchAudio from '../../modules/repitch-audio';
 import { lang } from '../i18n';
 import { hasSupportedExtension } from './formats';
+import { DEFAULT_TEMPERAMENT, cleanTemperament, type TemperamentSettings } from './temperaments';
 import {
   MAX_CENTS,
   MAX_REF_HZ,
@@ -60,9 +61,9 @@ export type ToolsSettings = {
   flash: boolean;
   /** Pitch class 0…11 (C = 0) or 'auto'. */
   tunerTarget: number | 'auto';
-};
+} & TemperamentSettings;
 
-export const DEFAULT_TOOLS: ToolsSettings = { bpm: 100, beatsPerBar: 4, volume: 80, flash: false, tunerTarget: 'auto' };
+export const DEFAULT_TOOLS: ToolsSettings = { bpm: 100, beatsPerBar: 4, volume: 80, flash: false, tunerTarget: 'auto', ...DEFAULT_TEMPERAMENT };
 
 // ---- sanitisers: library file and settings backups are untrusted JSON ----
 
@@ -91,6 +92,7 @@ export function cleanTools(raw: any): ToolsSettings {
     volume: clampNum(t.volume, 0, 100, DEFAULT_TOOLS.volume),
     flash: t.flash === true,
     tunerTarget: Number.isInteger(target) && target >= 0 && target <= 11 ? target : 'auto',
+    ...cleanTemperament(t),
   };
 }
 function cleanOverride(o: any): TrackTuning | null {

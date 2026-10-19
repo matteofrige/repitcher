@@ -76,6 +76,7 @@ function Navigator() {
         />
         <Stack.Screen name="about" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="backup" options={{ presentation: 'modal', headerShown: false }} />
+        <Stack.Screen name="temperamento" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen
           name="add-to-playlist"
           options={{ presentation: 'modal', headerShown: false }}

@@ -169,6 +169,7 @@ capture_set() {
   launch_route "/playlists";                shot "$PREFIX-playlist-$suffix" 4
   launch_route "/metronomo";                shot "$PREFIX-metronomo-$suffix" 4; raw "$PREFIX-metronomo-$suffix" metronomo
   launch_route "/accordatore";              shot "$PREFIX-accordatore-$suffix" 4; raw "$PREFIX-accordatore-$suffix" accordatore
+  launch_route "/temperamento";             shot "$PREFIX-temperamento-$suffix" 4
   launch_route "/about";                    shot "$PREFIX-about-$suffix" 4
   launch_route "/playlist/p1";              shot "$PREFIX-playlist-dettaglio-$suffix" 4; raw "$PREFIX-playlist-dettaglio-$suffix" playlist
   launch_route "/player?trackId=t4";        shot "$PREFIX-player-$suffix" 4.5; raw "$PREFIX-player-$suffix" player

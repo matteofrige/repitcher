@@ -10,9 +10,9 @@ import { Paper } from '../components/Paper';
 import { PromptHost } from '../components/PromptHost';
 import { SheetStatusBar } from '../components/SheetStatusBar';
 import { SeekBar } from '../components/SeekBar';
-import { FineTuneControl, TranspositionControl } from '../components/TuningControls';
+import { TranspositionAndFineControl } from '../components/TuningControls';
 import { effectiveTuning, sourceHzOf, useGlobalTuning, useTrack } from '../lib/library';
-import { formatResultLine, formatSettingsSummary } from '../lib/tuning';
+import { correctionCents, formatResultLine, formatSettingsSummary } from '../lib/tuning';
 import { SourceLa } from '../components/SourceLa';
 import {
   next,
@@ -29,12 +29,12 @@ import { column } from '../theme/layout';
 import { T } from '../theme/type';
 import { sym } from '../lib/icons';
 
-function Section({ n, title, text, children }: { n: number; title: string; text: string; children: ReactNode }) {
+function Section({ n, title, text, children }: { n: number; title: string; text?: string; children: ReactNode }) {
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 8 }}>
       <View style={{ gap: 2 }}>
         <T variant="headline" accessibilityRole="header">{`${n}. ${title}`}</T>
-        <T variant="footnote">{text}</T>
+        {text ? <T variant="footnote">{text}</T> : null}
       </View>
       {children}
     </View>
@@ -77,6 +77,7 @@ export default function PlayerScreen() {
       ...(semitones !== undefined && { semitones }),
       ...(cents !== undefined && { cents }),
     });
+  const corrected = Math.round(correctionCents(myLa, sourceHzOf(track))) !== 0;
   const atEnd = index + 1 >= queue.length;
 
   return (
@@ -90,7 +91,7 @@ export default function PlayerScreen() {
           // Android: a full-screen edge-to-edge screen, not an iOS sheet: no grabber, clear the status bar.
           paddingTop: Platform.OS === 'android' ? insets.top + 16 : 8,
           paddingBottom: 16,
-          gap: 20,
+          gap: 16,
         }}>
         {Platform.OS === 'ios' ? (
           <View
@@ -132,18 +133,15 @@ export default function PlayerScreen() {
 
         <View
           style={{
-            gap: 2,
+            gap: 0,
             alignItems: 'center',
-            paddingVertical: 10,
+            paddingVertical: 6,
             borderTopWidth: StyleSheet.hairlineWidth,
             borderBottomWidth: StyleSheet.hairlineWidth,
             borderColor: colors.rule,
           }}>
-          <T variant="headline" style={{ textAlign: 'center' }}>
-            {own ? s.player.ownSettings : s.player.globalSettings}
-          </T>
           <T variant="annotation" style={{ textAlign: 'center' }}>
-            {formatSettingsSummary(tuning, myLa)}
+            {`${own ? s.player.ownStatus : s.player.globalStatus} · ${formatSettingsSummary(tuning, myLa)}`}
           </T>
           {own ? (
             <Pressable
@@ -158,24 +156,14 @@ export default function PlayerScreen() {
           ) : null}
         </View>
 
-        <Section n={1} title={s.player.sourceTitle} text={s.player.sourceText(myLa)}>
+        <Section n={1} title={s.player.sourceTitle} text={corrected ? undefined : s.player.sourceText(myLa)}>
           <SourceLa track={track} myLa={myLa} />
         </Section>
 
-        <Section
-          n={2}
-          title={s.player.transposeTitle}
-          text={s.player.transposeText}>
+        <Section n={2} title={s.player.transposeTitle} text={s.player.transposeText}>
           {/* `tuning.refHz` is the user's A: the staff label and caption read "La 442" like the Intonazione
               tab, instead of a misleading "La 440". Only semitones/cents are editable here. */}
-          <TranspositionControl value={tuning} onChange={onOwnChange} />
-        </Section>
-
-        <Section
-          n={3}
-          title={s.player.fineTitle}
-          text={s.player.fineText}>
-          <FineTuneControl value={tuning} onChange={onOwnChange} />
+          <TranspositionAndFineControl value={tuning} onChange={onOwnChange} />
         </Section>
 
         <T variant="callout" style={{ textAlign: 'center' }}>

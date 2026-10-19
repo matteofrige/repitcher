@@ -1,5 +1,7 @@
-import { useIsFocused } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { router, useIsFocused } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +14,7 @@ import { Paper } from '../../components/Paper';
 import { sym } from '../../lib/icons';
 import { setTools, useGlobalTuning, useTools } from '../../lib/library';
 import { signed } from '../../lib/tuning';
+import { hasTonic, isEqualTemperament, temperamentOffsets } from '../../lib/temperaments';
 import { IN_TUNE_CENTS, NOTE_NAMES, createPitchTracker, readNote } from '../../lib/tuner';
 import { useColors } from '../../theme';
 import { CONTENT_MAX_WIDTH, column } from '../../theme/layout';
@@ -23,13 +26,22 @@ const GAUGE_H = 56;
 const CHIP_GAP = 6;
 const IN_TUNE_LEAVE_CENTS = 8;
 
+/** Cents with one decimal, decimal comma and a real minus sign. */
+const signedCents1 = (c: number) => (Math.abs(c) < 0.05 ? '0' : `${c > 0 ? '+' : '−'}${Math.abs(c).toFixed(1).replace('.', ',')}`);
+
 type Status = 'starting' | 'running' | 'denied' | 'error';
 
 export default function TunerScreen() {
   const colors = useColors();
   const reduced = useReducedMotion();
   const refHz = useGlobalTuning().refHz;
-  const { tunerTarget } = useTools();
+  const tools = useTools();
+  const { tunerTarget } = tools;
+  const offsets = useMemo(
+    () => temperamentOffsets(tools),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tools.temperament, tools.temperamentTonic, tools.customCents],
+  );
   const [status, setStatus] = useState<Status>('starting');
   const [frequency, setFrequency] = useState(-1);
   const [wave, setWave] = useState<number[]>([]);
@@ -66,6 +78,7 @@ export default function TunerScreen() {
     let cancelled = false;
     tracker.current.reset();
     lastEmit.current = 0;
+    void activateKeepAwakeAsync('repitch-tuner').catch(() => {});
     // ('starting' and 'running' render the same; the handlers that bump `attempt` reset the status.)
     const sub = RepitchAudio.addTunerReadingListener((e) => {
       const now = Date.now();
@@ -86,6 +99,7 @@ export default function TunerScreen() {
       });
     return () => {
       cancelled = true;
+      void deactivateKeepAwake('repitch-tuner').catch(() => {});
       sub.remove();
       void RepitchAudio.tunerStop().catch(() => {});
       setFrequency(-1);
@@ -96,7 +110,7 @@ export default function TunerScreen() {
   // Reference tone: octave 4 of the target note (Auto plays A), relative to the user's A.
   const [toneOn, setToneOn] = useState(false);
   const tonePc = tunerTarget === 'auto' ? 9 : tunerTarget;
-  const toneHz = refHz * Math.pow(2, (tonePc - 9) / 12);
+  const toneHz = refHz * Math.pow(2, (tonePc - 9) / 12) * Math.pow(2, offsets[tonePc] / 1200);
   useEffect(() => {
     if (!toneOn || !focused) return;
     // Re-runs on target / refHz changes: the engine glides to the new pitch.
@@ -120,8 +134,11 @@ export default function TunerScreen() {
   }, [toneOn]);
   useEffect(() => () => void RepitchAudio.toneStop().catch(() => {}), []);
 
+  const equalTemp = isEqualTemperament(tools);
+  const temperamentLabel =
+    s.temperament.names[tools.temperament] + (hasTonic(tools.temperament) ? ` · ${NOTE_NAMES[tools.temperamentTonic]}` : '');
   const hasSignal = frequency > 0;
-  const note = hasSignal ? readNote(frequency, refHz, tunerTarget, held.midi) : null;
+  const note = hasSignal ? readNote(frequency, refHz, tunerTarget, held.midi, offsets) : null;
   const cents = note?.cents ?? 0;
   const inTune = !!note && Math.abs(cents) <= (held.inTune ? IN_TUNE_LEAVE_CENTS : IN_TUNE_CENTS);
   const nextMidi = note && tunerTarget === 'auto' ? note.midi : null;
@@ -174,7 +191,7 @@ export default function TunerScreen() {
 
   const waveW = Math.max(1, width);
   const wavePoints = wave
-    .map((v, i) => `${((i / Math.max(1, wave.length - 1)) * waveW).toFixed(1)},${(32 - Math.max(-1, Math.min(1, v)) * 30).toFixed(1)}`)
+    .map((v, i) => `${((i / Math.max(1, wave.length - 1)) * waveW).toFixed(1)},${(22 - Math.max(-1, Math.min(1, v)) * 20).toFixed(1)}`)
     .join(' ');
 
   const verdict = !note
@@ -242,6 +259,11 @@ export default function TunerScreen() {
                   style={{ fontFamily: fonts.caslon, fontVariant: numerals, fontSize: 20, color: colors.inkSecondary }}>
                   {hasSignal ? s.tuner.frequency(frequency) : ' '}
                 </Text>
+                {note && !equalTemp ? (
+                  <T variant="footnote" style={{ textAlign: 'center' }}>
+                    {s.temperament.note(temperamentLabel, signedCents1(offsets[NOTE_NAMES.indexOf(note.name)]))}
+                  </T>
+                ) : null}
               </View>
 
               <View accessible={false} importantForAccessibility="no-hide-descendants">
@@ -287,8 +309,8 @@ export default function TunerScreen() {
               </View>
 
               <View accessible={false} importantForAccessibility="no-hide-descendants">
-                <Svg width={width} height={64}>
-                  <Line x1={0} x2={width} y1={32} y2={32} stroke={colors.rule} strokeWidth={StyleSheet.hairlineWidth} />
+                <Svg width={width} height={44}>
+                  <Line x1={0} x2={width} y1={22} y2={22} stroke={colors.rule} strokeWidth={StyleSheet.hairlineWidth} />
                   {wave.length > 1 ? <Polyline points={wavePoints} fill="none" stroke={colors.pencil} strokeWidth={1} /> : null}
                 </Svg>
               </View>
@@ -303,6 +325,19 @@ export default function TunerScreen() {
                 <View accessibilityRole="radiogroup" accessibilityLabel={s.tuner.targetTitle} style={styles.notes}>
                   {NOTE_NAMES.map((name, i) => targetChip(i, name, noteW))}
                 </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${s.temperament.rowLabel}: ${temperamentLabel}`}
+                  onPress={() => router.push('/temperamento' as never)}
+                  style={({ pressed }) => [styles.tempRow, { borderColor: colors.rule, opacity: pressed ? 0.55 : 1 }]}>
+                  <T variant="body" style={{ flex: 1 }}>
+                    {s.temperament.rowLabel}
+                  </T>
+                  <T variant="body" tone="tint" numberOfLines={1} style={{ flexShrink: 1 }}>
+                    {temperamentLabel}
+                  </T>
+                  <SymbolView name={sym('chevron.right')} size={13} tintColor={colors.pencil} resizeMode="scaleAspectFit" style={{ width: 16, height: 16 }} />
+                </Pressable>
                 {RepitchAudio.hasTone() ? (
                   <>
                     <Button
@@ -315,10 +350,9 @@ export default function TunerScreen() {
                       }}
                       style={{ marginTop: 8 }}
                     />
-                    <T variant="footnote">{s.tuner.toneHint}</T>
                   </>
                 ) : null}
-                <T variant="footnote">{s.tuner.referenceInfo(refHz)}</T>
+                <T variant="footnote">{RepitchAudio.hasTone() ? s.tuner.referenceNote(refHz) : s.tuner.referenceOnly(refHz)}</T>
               </View>
             </>
           )}
@@ -329,8 +363,16 @@ export default function TunerScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 24 },
+  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 16 },
   targetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tempRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   notes: { flexDirection: 'row', flexWrap: 'wrap', gap: CHIP_GAP },
   chip: {
     minHeight: 44,

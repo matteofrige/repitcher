@@ -19,14 +19,28 @@ import { TuningStaff } from './TuningStaff';
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
-function BigValue({ text, unit, label }: { text: string; unit: string; label: string }) {
+function BigValue({
+  text,
+  unit,
+  label,
+  size = 40,
+  lineHeight = 46,
+  minWidth = 110,
+}: {
+  text: string;
+  unit: string;
+  label: string;
+  size?: number;
+  lineHeight?: number;
+  minWidth?: number;
+}) {
   const colors = useColors();
   return (
-    <View accessible accessibilityLabel={label} style={{ alignItems: 'center', minWidth: 110 }}>
+    <View accessible accessibilityLabel={label} style={{ alignItems: 'center', minWidth }}>
       <Text
         allowFontScaling
         maxFontSizeMultiplier={1.4}
-        style={{ fontFamily: fonts.caslon, fontVariant: numerals, fontSize: 44, lineHeight: 52, color: colors.ink }}>
+        style={{ fontFamily: fonts.caslon, fontVariant: numerals, fontSize: size, lineHeight, color: colors.ink }}>
         {text}
       </Text>
       <T variant="footnote">{unit}</T>
@@ -111,58 +125,70 @@ type TuneProps = {
   onChange: (patch: Partial<Tuning>) => void;
 };
 
-/** ② Semitones: the staff (what the A becomes), its caption, readout and stepper. */
-export function TranspositionControl({ value, onChange }: TuneProps) {
-  const step = (d: number) => {
+/** Staff + caption, then semitones (left) and cents (right) side by side, each: readout, unit, stepper. */
+export function TranspositionAndFineControl({ value, onChange }: TuneProps) {
+  const stepSemi = (d: number) => {
     const n = clamp(value.semitones + d, -MAX_SEMITONES, MAX_SEMITONES);
     if (n !== value.semitones) onChange({ semitones: n });
   };
-  const spoken = s.tuning.spokenSemitones(value.semitones);
+  const stepCents = (d: number) => {
+    const n = clamp(value.cents + d, -MAX_CENTS, MAX_CENTS);
+    if (n !== value.cents) onChange({ cents: n });
+  };
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 10 }}>
       <View style={{ gap: 4 }}>
         <TuningStaff tuning={value} onChangeSemitones={(n) => onChange({ semitones: n })} />
         <T variant="callout" style={{ textAlign: 'center' }}>
           {describeResult(value)}
         </T>
       </View>
-      <ValueRow value={<BigValue text={signed(value.semitones)} unit={s.tuning.unitSemitones} label={spoken} />}>
-        <Stepper
-          minusLabel={s.tuning.semitoneMinus}
-          plusLabel={s.tuning.semitonePlus}
-          minusDisabled={value.semitones <= -MAX_SEMITONES}
-          plusDisabled={value.semitones >= MAX_SEMITONES}
-          onMinus={() => step(-1)}
-          onPlus={() => step(1)}
-        />
-      </ValueRow>
+      <View style={styles.pair}>
+        <View style={styles.col}>
+          <BigValue
+            text={signed(value.semitones)}
+            unit={s.tuning.unitSemitones}
+            label={s.tuning.spokenSemitones(value.semitones)}
+            size={36}
+            lineHeight={42}
+            minWidth={0}
+          />
+          <Stepper
+            minusLabel={s.tuning.semitoneMinus}
+            plusLabel={s.tuning.semitonePlus}
+            minusDisabled={value.semitones <= -MAX_SEMITONES}
+            plusDisabled={value.semitones >= MAX_SEMITONES}
+            onMinus={() => stepSemi(-1)}
+            onPlus={() => stepSemi(1)}
+          />
+        </View>
+        <View style={styles.col}>
+          <BigValue
+            text={signed(value.cents)}
+            unit={s.tuning.unitCents}
+            label={s.tuning.spokenCents(value.cents)}
+            size={36}
+            lineHeight={42}
+            minWidth={0}
+          />
+          <Stepper
+            holdable
+            minusLabel={s.tuning.centMinus}
+            plusLabel={s.tuning.centPlus}
+            minusDisabled={value.cents <= -MAX_CENTS}
+            plusDisabled={value.cents >= MAX_CENTS}
+            onMinus={() => stepCents(-1)}
+            onPlus={() => stepCents(1)}
+          />
+        </View>
+      </View>
     </View>
   );
 }
 
-/** ③ Cents: readout and stepper (hold to repeat). */
-export function FineTuneControl({ value, onChange }: TuneProps) {
-  const step = (d: number) => {
-    const n = clamp(value.cents + d, -MAX_CENTS, MAX_CENTS);
-    if (n !== value.cents) onChange({ cents: n });
-  };
-  const spoken = s.tuning.spokenCents(value.cents);
-  return (
-    <ValueRow value={<BigValue text={signed(value.cents)} unit={s.tuning.unitCents} label={spoken} />}>
-      <Stepper
-        holdable
-        minusLabel={s.tuning.centMinus}
-        plusLabel={s.tuning.centPlus}
-        minusDisabled={value.cents <= -MAX_CENTS}
-        plusDisabled={value.cents >= MAX_CENTS}
-        onMinus={() => step(-1)}
-        onPlus={() => step(1)}
-      />
-    </ValueRow>
-  );
-}
-
 const styles = StyleSheet.create({
+  pair: { flexDirection: 'row', gap: 16 },
+  col: { flex: 1, alignItems: 'center', gap: 4 },
   valueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap', gap: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
