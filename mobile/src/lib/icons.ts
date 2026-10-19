@@ -43,6 +43,7 @@ const MAP = {
   'speaker.wave.2.fill': 'volume_up',
   'arrow.down': 'arrow_downward',
   'checkmark.circle.fill': 'check_circle',
+  'exclamationmark.triangle.fill': 'warning',
   circle: 'radio_button_unchecked',
   checkmark: 'check',
 } as const satisfies Partial<Record<SFSymbol, AndroidSymbol>>;

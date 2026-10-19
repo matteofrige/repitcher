@@ -32,8 +32,8 @@ public class RepitchAudioModule: Module {
       player.onRemotePrevious = { [weak self] in
         self?.sendEvent("onRemotePrevious", [:])
       }
-      metronome.onBeat = { [weak self] beat, accent, atMs in
-        self?.sendEvent("onMetronomeBeat", ["beat": beat, "accent": accent, "atMs": atMs])
+      metronome.onBeat = { [weak self] beat, accent, atMs, follow in
+        self?.sendEvent("onMetronomeBeat", ["beat": beat, "accent": accent, "atMs": atMs, "follow": follow])
       }
       tuner.onReading = { [weak self] reading in
         self?.sendEvent("onTunerReading", reading)
@@ -86,6 +86,28 @@ public class RepitchAudioModule: Module {
       }
     }
 
+    // Beat positions of the whole file (streamed decode), off the main thread.
+    AsyncFunction("detectBeats") { (uri: String, anchors: [Double], beatsPerBar: Int, promise: Promise) in
+      let url = URL(string: uri).flatMap { $0.scheme != nil ? $0 : nil } ?? URL(fileURLWithPath: uri)
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          let result: [String: Any] = try RPBeatDetector.detectBeatsInFile(at: url, anchors: anchors.map { NSNumber(value: $0) }, beatsPerBar: beatsPerBar)
+          promise.resolve(result)
+        } catch {
+          promise.reject("E_DETECT", error.localizedDescription)
+        }
+      }
+    }
+
+    // Downbeat phase from the cached neural activation (no network run). Nil when the file has no cache.
+    AsyncFunction("beatDownbeatPhase") { (uri: String, beats: [Double], beatsPerBar: Int, promise: Promise) in
+      let url = URL(string: uri).flatMap { $0.scheme != nil ? $0 : nil } ?? URL(fileURLWithPath: uri)
+      DispatchQueue.global(qos: .userInitiated).async {
+        let result = RPBeatDetector.downbeatPhaseForFile(at: url, beats: beats.map { NSNumber(value: $0) }, beatsPerBar: beatsPerBar)
+        promise.resolve(result)
+      }
+    }
+
     // Import check: same decoder the player uses (AVAudioFile), off the main thread.
     AsyncFunction("probeAudio") { (uri: String, promise: Promise) in
       let url = URL(string: uri).flatMap { $0.scheme != nil ? $0 : nil } ?? URL(fileURLWithPath: uri)
@@ -121,6 +143,36 @@ public class RepitchAudioModule: Module {
 
     AsyncFunction("metronomeConfigure") { (bpm: Double, beatsPerBar: Int, volume: Double) in
       self.metronome.configure(bpm: bpm, beatsPerBar: beatsPerBar, volume: volume)
+    }.runOnQueue(.main)
+
+    // Beat follow: clicks (and flashes) on the beats of the loaded track. Exclusive with the metronome above.
+    AsyncFunction("beatFollowStart") { (beats: [Double], beatsPerBar: Int, downbeatIndex: Int, clickAudible: Bool, volume: Double, promise: Promise) in
+      do {
+        try self.metronome.startFollow(beats: beats, beatsPerBar: beatsPerBar, downbeatIndex: downbeatIndex, clickAudible: clickAudible, volume: volume)
+        promise.resolve()
+      } catch {
+        promise.reject("E_BEAT_FOLLOW", error.localizedDescription)
+      }
+    }.runOnQueue(.main)
+
+    AsyncFunction("beatFollowStop") {
+      self.metronome.stopFollow()
+    }.runOnQueue(.main)
+
+    AsyncFunction("beatFollowConfigure") { (clickAudible: Bool, beatsPerBar: Int, downbeatIndex: Int, volume: Double) in
+      self.metronome.updateFollowOptions(clickAudible: clickAudible, beatsPerBar: beatsPerBar, downbeatIndex: downbeatIndex, volume: volume)
+    }.runOnQueue(.main)
+
+    // Position in the track (seconds) that is audible *now-ish* for a touch timestamp. RN 0.86 (Fabric)
+    // `nativeEvent.timestamp` is UITouch.timestamp * 1000 = system uptime in ms (RCTSurfaceTouchHandler.mm,
+    // RCTConversions.h), i.e. the mach_absolute_time domain, the same as AVAudioTime host seconds. If the value is
+    // missing or not plausible (not within the last 1.5 s), fall back to "now minus 15 ms" (typical touch latency).
+    // Nil when the track isn't playing.
+    AsyncFunction("beatTapPosition") { (uptimeMs: Double) -> Double? in
+      let now = AVAudioTime.seconds(forHostTime: mach_absolute_time())
+      var host = uptimeMs / 1000
+      if !host.isFinite || host > now + 0.05 || now - host > 1.5 { host = now - 0.015 }
+      return self.player.audibleFileSeconds(atHostSeconds: host)
     }.runOnQueue(.main)
 
     AsyncFunction("tunerStart") { (promise: Promise) in

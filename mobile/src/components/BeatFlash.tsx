@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useFrameCallback, useReducedMotion, useShar
 
 import * as RepitchAudio from '../../modules/repitch-audio';
 import { getTools, useTools } from '../lib/library';
+import { useBeatFollow } from '../lib/beatFollow';
 import { useMetronome } from '../lib/metronome';
 import { useColors } from '../theme';
 
@@ -20,14 +21,16 @@ const PEAK_NORMAL = 0.5;
  * Whole-screen flash on each metronome beat (opt-in, meant to be seen from a music stand).
  * Native reports each beat *ahead of the sound* with the epoch time it will be heard (`atMs`); here the
  * upcoming times live in a shared value and a UI-thread frame callback draws against `Date.now()`, so a beat
- * costs no React render. The next beat is also predicted from the BPM, so a late/missed event still flashes.
+ * costs no React render. For the fixed-tempo metronome the next beat is also predicted from the BPM, so a late/missed
+ * event still flashes; beat-follow events (`follow`) are already sent well ahead and are used as they come.
  */
 export function BeatFlash() {
-  const { flash } = useTools();
+  const { flash, follow, followFlash } = useTools();
   const { running } = useMetronome();
+  const { active: followActive } = useBeatFollow();
   const colors = useColors();
   const reduced = useReducedMotion();
-  const enabled = flash && running;
+  const enabled = (flash && running) || (follow && followFlash && followActive);
   /** Flat pairs [atMs, peak, atMs, peak, ...], ascending by time. */
   const beats = useSharedValue<number[]>([]);
   const opacity = useSharedValue(0);
@@ -41,10 +44,13 @@ export function BeatFlash() {
     const sub = RepitchAudio.addMetronomeBeatListener((e) => {
       const { bpm, beatsPerBar } = getTools();
       const next = [{ at: e.atMs, peak: e.accent ? PEAK_ACCENT : PEAK_NORMAL }];
-      next.push({
-        at: e.atMs + 60000 / bpm,
-        peak: (e.beat + 1) % beatsPerBar === 0 ? PEAK_ACCENT : PEAK_NORMAL,
-      });
+      // Followed beats already arrive ~350 ms ahead and the tempo isn't constant: no BPM prediction for them.
+      if (!e.follow) {
+        next.push({
+          at: e.atMs + 60000 / bpm,
+          peak: (e.beat + 1) % beatsPerBar === 0 ? PEAK_ACCENT : PEAK_NORMAL,
+        });
+      }
       const cutoff = Date.now() - 1000;
       const list: number[] = [];
       const old = beats.get();
@@ -80,7 +86,6 @@ export function BeatFlash() {
     }
     if (opacity.get() !== value) opacity.set(value);
   }, false);
-  // The second argument of useFrameCallback is only read on mount: (de)activate it explicitly.
   useEffect(() => {
     frame.setActive(enabled);
   }, [enabled, frame]);

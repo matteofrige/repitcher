@@ -53,6 +53,10 @@ export function currentTrackId(): string | undefined {
   return state.queue[state.index];
 }
 
+export function isPlayerPlaying(): boolean {
+  return state.isPlaying;
+}
+
 async function loadAt(index: number, autoplay: boolean) {
   const id = state.queue[index];
   const track = id ? getTrack(id) : undefined;
@@ -191,6 +195,10 @@ function subscribe(l: () => void) {
   return () => {
     listeners.delete(l);
   };
+}
+/** Non-React subscription to player state changes (track, playing, loading...). */
+export function subscribePlayer(l: () => void) {
+  return subscribe(l);
 }
 export function usePlayer(): PlayerState {
   return useSyncExternalStore(subscribe, () => state, () => state);

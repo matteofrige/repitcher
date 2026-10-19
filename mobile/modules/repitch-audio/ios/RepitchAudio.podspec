@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  s.frameworks = 'AVFoundation', 'AudioToolbox', 'Accelerate', 'MediaPlayer'
+  s.frameworks = 'AVFoundation', 'AudioToolbox', 'Accelerate', 'MediaPlayer', 'CoreML'
 
   # Signalsmith is header-only and lives in ../cpp/vendor (outside the pod root), so it is
   # reached through the header search path rather than source_files.
@@ -29,6 +29,9 @@ Pod::Spec.new do |s|
   }
 
   s.source_files = "**/*.{h,m,mm,swift}"
+  # Beat This! network: only the compiled model is bundled (the .mlpackage next to it is the source).
+  s.resource_bundles = { 'RepitchAudioModels' => ['models/BeatThis.mlmodelc'] }
+
   # Only the ObjC header is public (it must stay free of C++ to be part of the Swift umbrella).
-  s.public_header_files = "RPPitchAudioUnit.h", "RPTuningDetector.h", "RPMetronome.h", "RPPitchDetectorBridge.h"
+  s.public_header_files = "RPPitchAudioUnit.h", "RPTuningDetector.h", "RPMetronome.h", "RPPitchDetectorBridge.h", "RPBeatDetector.h"
 end

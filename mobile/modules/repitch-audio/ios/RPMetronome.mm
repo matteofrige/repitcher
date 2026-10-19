@@ -1,6 +1,7 @@
 #import "RPMetronome.h"
 
 #include <mach/mach_time.h>
+#include <cmath>
 #include <memory>
 #include <string.h>
 
@@ -53,6 +54,27 @@
 
 - (void)start { _core->start(); }
 - (void)stop { _core->stop(); }
+
+- (void)setFollow:(BOOL)on clickAudible:(BOOL)clickAudible {
+  _core->setFollowClickAudible(clickAudible);
+  _core->setFollow(on);
+}
+
+- (void)configureFollowWithBeatsPerBar:(NSInteger)beatsPerBar volume:(double)volume {
+  _core->setBeatsPerBar((int)beatsPerBar);
+  _core->setVolume((float)volume);
+}
+
+- (BOOL)scheduleClickAtHostSeconds:(double)hostSeconds accent:(BOOL)accent beatIndex:(NSInteger)beatIndex {
+  int64_t blockFrame = 0;
+  uint64_t tag = 0;
+  if (!_core->lastBlock(blockFrame, tag) || tag == 0) return NO;
+  const double dt = hostSeconds - [AVAudioTime secondsForHostTime:tag];
+  const int64_t frame = blockFrame + (int64_t)std::llround(dt * _core->sampleRate());
+  return _core->scheduleClick(frame, accent, (int)beatIndex);
+}
+
+- (void)clearScheduled { _core->clearScheduled(); }
 
 - (NSArray<NSDictionary<NSString *, id> *> *)drainBeatsWithLatency:(NSTimeInterval)latency {
   NSMutableArray *out = [NSMutableArray array];

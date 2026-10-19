@@ -16,6 +16,8 @@ export type MetronomeBeatEvent = {
   accent: boolean;
   /** Epoch ms (same clock as `Date.now()`) at which the click is audible; usually a little in the future. */
   atMs: number;
+  /** True for clicks scheduled by the beat follow (reported ~350 ms ahead, already aligned to the track). */
+  follow?: boolean;
 };
 export type TunerReadingEvent = {
   /** Hz, -1 when there is no signal. */
@@ -47,6 +49,26 @@ export type TuningDetection = {
   /** 0…1 */
   confidence: number;
 };
+
+export type BeatDetection = {
+  valid: boolean;
+  /** Valid but low confidence: the user should check by ear. */
+  uncertain: boolean;
+  /** Median tempo. */
+  bpm: number;
+  /** 0…1 */
+  confidence: number;
+  /** Beat positions in seconds, ascending. */
+  beats: number[];
+  /** 'neural' = Beat This! network (Core ML on iOS, ONNX Runtime on Android); 'spectral' = spectral-flux tracker (fallback). */
+  method: 'neural' | 'spectral';
+  /** Index (0…beatsPerBar-1) of the beat that opens the bar; 0 when unknown (spectral). */
+  downbeatIndex: number;
+  /** 0…1: how clearly the downbeat phase wins over the others; 0 when unknown. */
+  downbeatMargin: number;
+};
+
+export type DownbeatPhase = { downbeatIndex: number; margin: number };
 
 export type PlayerStatus = {
   position: number;

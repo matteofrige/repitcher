@@ -2,7 +2,7 @@
   "expo": {
     "name": "RePitch",
     "slug": "repitch",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "repitch",
@@ -15,7 +15,7 @@
         "tinted": "./assets/images/icon-tinted.png"
       },
       "bundleIdentifier": "it.re-pitch.repitch",
-      "buildNumber": "8",
+      "buildNumber": "9",
       "appleTeamId": "BY6ANXN7HT",
       "infoPlist": {
         "UISupportedInterfaceOrientations": [
@@ -49,7 +49,7 @@
       "predictiveBackGestureEnabled": false,
       "allowBackup": false,
       "package": "it.repitch.RePitch",
-      "versionCode": 7,
+      "versionCode": 11,
       "permissions": [
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",

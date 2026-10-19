@@ -13,7 +13,7 @@ import { PromptHost } from '../components/PromptHost';
 import { APP_STORE_ID, SITE_URL } from '../config';
 import { lang, s } from '../i18n';
 import { appVersion, sendProblemReport, sendSuggestion, supportEmailConfigured } from '../lib/feedback';
-import { SIGNALSMITH_LINEAR_LICENSE, SIGNALSMITH_STRETCH_LICENSE } from '../lib/licenses';
+import { BEAT_THIS_LICENSE, SIGNALSMITH_LINEAR_LICENSE, SIGNALSMITH_STRETCH_LICENSE } from '../lib/licenses';
 import { markRated } from '../lib/review';
 import { useColors } from '../theme';
 import { column } from '../theme/layout';
@@ -178,6 +178,10 @@ export default function AboutScreen() {
               <T variant="footnote">{s.about.audioEngine}</T>
               <T variant="body">{s.about.audioEngineValue}</T>
             </View>
+            <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 4 }}>
+              <T variant="footnote">{s.about.beatDetection}</T>
+              <T variant="body">{s.about.beatDetectionValue}</T>
+            </View>
             <Row
               symbol={sym('doc.text')}
               label={licenseOpen ? s.about.licenseHide : s.about.licenseShow}
@@ -191,6 +195,9 @@ export default function AboutScreen() {
                 </T>
                 <T variant="caption" selectable>
                   {SIGNALSMITH_LINEAR_LICENSE}
+                </T>
+                <T variant="caption" selectable>
+                  {BEAT_THIS_LICENSE}
                 </T>
               </View>
             ) : null}

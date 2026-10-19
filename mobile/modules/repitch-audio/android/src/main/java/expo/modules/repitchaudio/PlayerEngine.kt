@@ -150,6 +150,16 @@ class PlayerEngine(context: Context, private val emit: (String, Map<String, Any?
     PlayerHolder.processor.semitones = v  // picked up by the playback thread at the next buffer
   }
 
+  /**
+   * File time (seconds) of the audio audible at the speaker right now, or null unless the track is actually playing.
+   * ExoPlayer's position is the sink position (already compensated for the AudioTrack's output latency); the pitch
+   * shifter delays the content by its own latency on top, like pitchLatencySeconds on iOS. Main thread.
+   */
+  fun audibleSeconds(): Double? {
+    if (exo.mediaItemCount == 0 || !exo.isPlaying) return null
+    return exo.currentPosition / 1000.0 - PlayerHolder.processor.latencySeconds
+  }
+
   fun status(): Map<String, Any?> = mapOf(
     "position" to positionSeconds(),
     "duration" to durationSeconds(),

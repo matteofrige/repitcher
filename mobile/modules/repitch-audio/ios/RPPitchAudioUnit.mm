@@ -31,6 +31,7 @@ struct DSPState {
   std::vector<float> outStorage;  // channels * maxFrames
   std::vector<uint8_t> ablStorage;  // AudioBufferList with `channels` buffers
   bool ready = false;
+  double latencySeconds = 0;  // written in allocateRenderResources (main), read from main
 };
 
 }  // namespace
@@ -108,6 +109,10 @@ struct DSPState {
   _state->resetRequested.store(true, std::memory_order_release);
 }
 
+- (double)latencySeconds {
+  return _state->latencySeconds;
+}
+
 #pragma mark - Render resources
 
 - (BOOL)allocateRenderResourcesAndReturnError:(NSError **)outError {
@@ -135,6 +140,8 @@ struct DSPState {
   s->inStorage.assign((size_t)channels * s->maxFrames, 0.0f);
   s->outStorage.assign((size_t)channels * s->maxFrames, 0.0f);
   s->ablStorage.assign(offsetof(AudioBufferList, mBuffers) + sizeof(AudioBuffer) * (size_t)channels, 0);
+  s->latencySeconds = outFormat.sampleRate > 0
+      ? (double)(s->stretch.inputLatency() + s->stretch.outputLatency()) / outFormat.sampleRate : 0.0;
   s->appliedSemitones = NAN;
   s->resetRequested.store(false, std::memory_order_relaxed);
   s->ready = true;

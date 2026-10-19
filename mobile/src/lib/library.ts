@@ -35,7 +35,33 @@ export type Track = {
   sourceHz: number | null;
   /** Original file name (with extension) at import; used to match settings backups. */
   originalName?: string;
+  /** Beat positions found by the native tracker (derived data: not part of settings backups). */
+  beats: TrackBeats | null;
+  /** null = not analysed (analysis is on demand, when the beat follow is used on the track). */
+  beatDetection: 'pending' | 'done' | 'failed' | null;
 };
+
+export type TrackBeats = {
+  bpm: number;
+  confidence: number;
+  valid: boolean;
+  /** Valid but low confidence: the user should check by ear (and can correct it). */
+  uncertain: boolean;
+  times: number[];
+  /** Taps by the user (seconds in the track, latency compensated) that constrain the analysis. */
+  anchors: number[];
+  /** Index in `times` of a beat that is a "1" (accent); the bar counts from it. */
+  downbeatIndex: number;
+  /** How the beats were found: Beat This! network (iOS) or the spectral-flux tracker. */
+  method: 'neural' | 'spectral';
+  /** The user chose the "1" (setDownbeatAt): automatic re-phasing (new meter, re-analysis) leaves it alone. */
+  downbeatManual: boolean;
+  /** Beats per bar the automatic `downbeatIndex` was computed for (neural only); 0 = not computed. */
+  phaseBar: number;
+};
+
+/** The automatic downbeat phase is applied only when it clearly beats the other phases. */
+const DOWNBEAT_MIN_MARGIN = 0.3;
 
 /** Settings of a backed-up track that has no counterpart in the library yet. */
 export type BackupTrack = {
@@ -59,11 +85,27 @@ export type ToolsSettings = {
   /** 0…100 */
   volume: number;
   flash: boolean;
+  /** Metronome on the track: click/flash on the beats of the loaded track instead of a fixed tempo. */
+  follow: boolean;
+  /** Beat follow: audible click. */
+  followClick: boolean;
+  /** Beat follow: screen flash. */
+  followFlash: boolean;
   /** Pitch class 0…11 (C = 0) or 'auto'. */
   tunerTarget: number | 'auto';
 } & TemperamentSettings;
 
-export const DEFAULT_TOOLS: ToolsSettings = { bpm: 100, beatsPerBar: 4, volume: 80, flash: false, tunerTarget: 'auto', ...DEFAULT_TEMPERAMENT };
+export const DEFAULT_TOOLS: ToolsSettings = {
+  bpm: 100,
+  beatsPerBar: 4,
+  volume: 80,
+  flash: false,
+  follow: false,
+  followClick: true,
+  followFlash: true,
+  tunerTarget: 'auto',
+  ...DEFAULT_TEMPERAMENT,
+};
 
 // ---- sanitisers: library file and settings backups are untrusted JSON ----
 
@@ -91,10 +133,52 @@ export function cleanTools(raw: any): ToolsSettings {
     beatsPerBar: Math.round(clampNum(t.beatsPerBar, 1, 12, DEFAULT_TOOLS.beatsPerBar)),
     volume: clampNum(t.volume, 0, 100, DEFAULT_TOOLS.volume),
     flash: t.flash === true,
+    follow: t.follow === true,
+    followClick: t.followClick !== false,
+    followFlash: t.followFlash !== false,
     tunerTarget: Number.isInteger(target) && target >= 0 && target <= 11 ? target : 'auto',
     ...cleanTemperament(t),
   };
 }
+/** Ascending, finite times in [0, limit], rounded to the millisecond, at most `max`. */
+function cleanTimes(raw: unknown, limit: number, max: number): number[] {
+  const out: number[] = [];
+  if (!Array.isArray(raw)) return out;
+  let last = -1;
+  for (const x of raw) {
+    if (out.length >= max) break;
+    if (typeof x !== 'number' || !Number.isFinite(x) || x < 0 || x > limit) continue;
+    const t = Math.round(x * 1000) / 1000;
+    if (t <= last) continue;
+    out.push(t);
+    last = t;
+  }
+  return out;
+}
+/** Beat times: finite, ascending, within the track (+1 s), at most 20000, rounded to the millisecond. */
+function cleanBeats(raw: any, duration: number): TrackBeats | null {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.times)) return null;
+  const limit = duration > 0 ? duration + 1 : Number.POSITIVE_INFINITY;
+  const times = cleanTimes(raw.times, limit, MAX_BEATS);
+  const valid = raw.valid === true && times.length >= 2;
+  const db = typeof raw.downbeatIndex === 'number' && Number.isFinite(raw.downbeatIndex) ? Math.round(raw.downbeatIndex) : 0;
+  return {
+    bpm: clampNum(raw.bpm, 0, 1000, 0),
+    confidence: clampNum(raw.confidence, 0, 1, 0),
+    valid,
+    uncertain: valid && raw.uncertain === true,
+    times,
+    anchors: cleanTimes(raw.anchors, limit, MAX_ANCHORS),
+    downbeatIndex: Math.max(0, Math.min(Math.max(0, times.length - 1), db)),
+    method: raw.method === 'neural' ? 'neural' : 'spectral',
+    // Data saved before the flag existed: a non-zero "1" was the user's choice.
+    downbeatManual: typeof raw.downbeatManual === 'boolean' ? raw.downbeatManual : db > 0,
+    phaseBar: typeof raw.phaseBar === 'number' && Number.isFinite(raw.phaseBar) ? Math.max(0, Math.min(12, Math.round(raw.phaseBar))) : 0,
+  };
+}
+const MAX_BEATS = 20000;
+const MAX_ANCHORS = 5000;
+
 function cleanOverride(o: any): TrackTuning | null {
   if (!o || typeof o.semitones !== 'number' || typeof o.cents !== 'number') return null;
   return {
@@ -202,10 +286,14 @@ function migrateTrack(raw: any): Track {
     if (override !== undefined || s !== 0 || c !== 0) ov = { semitones: s, cents: c };
   }
   const detection = rest.detection;
+  const duration = clampNum(rest.duration, 0, 1e7, 0);
+  const beats = cleanBeats(rest.beats, duration);
   return {
     ...rest,
     title: cleanString(rest.title, 500) || String(rest.fileName),
-    duration: clampNum(rest.duration, 0, 1e7, 0),
+    duration,
+    beats,
+    beatDetection: beats && (rest.beatDetection === 'done' || rest.beatDetection === 'failed') ? rest.beatDetection : null,
     addedAt: clampNum(rest.addedAt, 0, Number.MAX_SAFE_INTEGER, 0),
     override: ov,
     detectedHz: cleanHz(rest.detectedHz),
@@ -276,6 +364,10 @@ function subscribe(l: () => void) {
   return () => {
     listeners.delete(l);
   };
+}
+/** Non-React subscription to any library change. */
+export function subscribeLibrary(l: () => void) {
+  return subscribe(l);
 }
 function useLibrarySelector<T>(sel: (s: LibraryState) => T): T {
   return useSyncExternalStore(subscribe, () => sel(state), () => sel(state));
@@ -400,6 +492,8 @@ export async function importFiles(): Promise<ImportResult> {
         detectedHz: null,
         detectedConfidence: null,
         detection: null,
+        beats: null,
+        beatDetection: null,
         sourceHz: null,
         originalName: asset.name.slice(0, 1000),
       });
@@ -614,6 +708,170 @@ export async function pumpDetection(): Promise<void> {
     }
   } finally {
     pumping = false;
+  }
+}
+
+// ---- beat positions (on demand, for the metronome that follows the track) ----
+
+const beatJobs = new Map<string, Promise<TrackBeats | null>>();
+
+/** Index of the beat nearest to `t` (-1 if none). */
+export function nearestBeatIndex(times: number[], t: number): number {
+  let best = -1;
+  let bd = Infinity;
+  for (let i = 0; i < times.length; i++) {
+    const d = Math.abs(times[i] - t);
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** Runs the native tracker (with `anchors`, if any) and stores the result. `keep` carries user edits over. */
+function runDetection(trackId: string, anchors: number[], opts: { markPending: boolean; keepDownbeat: boolean }): Promise<TrackBeats | null> {
+  const track = getTrack(trackId);
+  if (!track) return Promise.resolve(null);
+  if (!RepitchAudio.beatFollowAvailable()) return Promise.resolve(null);
+  const before = track.beats;
+  const job = (async () => {
+    if (opts.markPending) updateTrack(trackId, { beatDetection: 'pending' });
+    let beats: TrackBeats | null = null;
+    try {
+      const bar = getTools().beatsPerBar;
+      const r = await RepitchAudio.detectBeats(trackUri(track), anchors, bar);
+      beats = r ? cleanBeats({ ...r, times: r.beats, anchors, downbeatManual: false, downbeatIndex: 0 }, track.duration) : null;
+      if (beats && r) {
+        if (opts.keepDownbeat && before?.downbeatManual && before.times.length > 0) {
+          // The user's "1": the new beat closest to the old downbeat.
+          const i = nearestBeatIndex(beats.times, before.times[Math.min(before.downbeatIndex, before.times.length - 1)]);
+          beats.downbeatIndex = Math.max(0, i);
+          beats.downbeatManual = true;
+        } else if (beats.method === 'neural') {
+          beats.downbeatIndex = (r.downbeatMargin ?? 0) > DOWNBEAT_MIN_MARGIN ? Math.max(0, Math.min(beats.times.length - 1, Math.round(r.downbeatIndex ?? 0))) : 0;
+          beats.phaseBar = bar;
+        } else if (opts.keepDownbeat && before && before.times.length > 0 && before.downbeatIndex > 0) {
+          const i = nearestBeatIndex(beats.times, before.times[Math.min(before.downbeatIndex, before.times.length - 1)]);
+          beats.downbeatIndex = Math.max(0, i);
+        }
+      }
+    } catch (e) {
+      console.warn('RePitch: beat detection failed', e);
+    }
+    // The track may have been deleted meanwhile.
+    if (getTrack(trackId)) {
+      if (beats) updateTrack(trackId, { beats, beatDetection: 'done' });
+      else updateTrack(trackId, opts.markPending ? { beats: null, beatDetection: 'failed' } : { beatDetection: before ? 'done' : 'failed' });
+    }
+    return beats;
+  })().finally(() => beatJobs.delete(trackId));
+  beatJobs.set(trackId, job);
+  return job;
+}
+
+/** Beats of a track, analysing it once (concurrent calls share the work). Null if the platform can't or it failed. */
+export function ensureBeats(trackId: string): Promise<TrackBeats | null> {
+  const track = getTrack(trackId);
+  if (!track) return Promise.resolve(null);
+  if (track.beats && track.beatDetection === 'done') return Promise.resolve(track.beats);
+  const running = beatJobs.get(trackId);
+  if (running) return running;
+  return runDetection(trackId, track.beats?.anchors ?? [], { markPending: true, keepDownbeat: false });
+}
+
+/** Sets the user's taps on the track (sanitised) without re-analysing; call reanalyseBeats afterwards. */
+export function setBeatAnchors(trackId: string, anchors: number[]) {
+  const track = getTrack(trackId);
+  if (!track) return;
+  const clean = cleanTimes(anchors, track.duration > 0 ? track.duration + 1 : Infinity, MAX_ANCHORS);
+  // No analysis yet (or it failed): keep the taps in an empty placeholder so reanalyseBeats can use them.
+  const base: TrackBeats = track.beats ?? { bpm: 0, confidence: 0, valid: false, uncertain: false, times: [], anchors: [], downbeatIndex: 0, method: 'spectral', downbeatManual: false, phaseBar: 0 };
+  updateTrack(trackId, { beats: { ...base, anchors: clean } });
+}
+
+/** Re-runs the tracker with the track's anchors (kept). Waits for a running analysis first. */
+export async function reanalyseBeats(trackId: string): Promise<TrackBeats | null> {
+  const running = beatJobs.get(trackId);
+  if (running) await running.catch(() => null);
+  const track = getTrack(trackId);
+  if (!track) return null;
+  return runDetection(trackId, track.beats?.anchors ?? [], { markPending: false, keepDownbeat: true });
+}
+
+/** Forgets the user's edits (taps, downbeat, double/half) and runs the plain analysis again. */
+export async function resetBeats(trackId: string): Promise<TrackBeats | null> {
+  const running = beatJobs.get(trackId);
+  if (running) await running.catch(() => null);
+  if (!getTrack(trackId)) return null;
+  return runDetection(trackId, [], { markPending: false, keepDownbeat: false });
+}
+
+function editBeats(trackId: string, fn: (b: TrackBeats) => TrackBeats | null) {
+  const track = getTrack(trackId);
+  if (!track?.beats) return;
+  const next = fn(track.beats);
+  if (next) updateTrack(trackId, { beats: next });
+}
+
+/** Twice the tempo: a beat is inserted in the middle of each interval (the last one extends by the last interval / 2). */
+export function doubleBeats(trackId: string) {
+  editBeats(trackId, (b) => {
+    const t = b.times;
+    if (t.length < 2 || t.length * 2 > MAX_BEATS) return null;
+    const out: number[] = [];
+    for (let i = 0; i < t.length; i++) {
+      out.push(t[i]);
+      if (i + 1 < t.length) out.push((t[i] + t[i + 1]) / 2);
+    }
+    const times = cleanTimes(out, Infinity, MAX_BEATS);
+    // The automatic phase refers to the old grid: from here on the "1" is fixed where it is.
+    return { ...b, times, bpm: b.bpm * 2, downbeatIndex: Math.min(times.length - 1, b.downbeatIndex * 2), downbeatManual: true };
+  });
+}
+
+/** Half the tempo: keeps every other beat, starting from `phase` (0 = the first, 1 = the second). */
+export function halveBeats(trackId: string, phase: 0 | 1) {
+  editBeats(trackId, (b) => {
+    const times = b.times.filter((_, i) => i % 2 === phase);
+    if (times.length < 2) return null;
+    // The old "1" survives if it's kept; otherwise the nearest kept beat takes over.
+    const oldTime = b.times[Math.min(b.downbeatIndex, b.times.length - 1)];
+    return { ...b, times, bpm: b.bpm / 2, downbeatIndex: Math.max(0, nearestBeatIndex(times, oldTime)), downbeatManual: true };
+  });
+}
+
+/** Marks beat `index` as a "1" (the accent / bar start of the click and flash). */
+export function setDownbeatAt(trackId: string, index: number) {
+  editBeats(trackId, (b) => {
+    if (!Number.isFinite(index) || b.times.length === 0) return null;
+    return { ...b, downbeatIndex: Math.max(0, Math.min(b.times.length - 1, Math.round(index))), downbeatManual: true };
+  });
+}
+
+const rephasing = new Set<string>();
+/**
+ * Neural beats only: recomputes the automatic "1" for the current beats per bar from the cached network
+ * activation (no network run). No-op for manual downbeats, spectral beats, or a phase already computed for this meter.
+ */
+export async function rephaseBeats(trackId: string): Promise<void> {
+  const track = getTrack(trackId);
+  const b = track?.beats;
+  const bar = getTools().beatsPerBar;
+  if (!track || !b || b.method !== 'neural' || b.downbeatManual || b.phaseBar === bar || b.times.length === 0) return;
+  if (rephasing.has(trackId)) return;
+  rephasing.add(trackId);
+  try {
+    const r = await RepitchAudio.beatDownbeatPhase(trackUri(track), b.times, bar);
+    const now = getTrack(trackId)?.beats;
+    // Beats edited meanwhile (re-analysis, double/half, manual "1"): leave them alone.
+    if (!now || now.times !== b.times || now.downbeatManual) return;
+    const idx = r && r.margin > DOWNBEAT_MIN_MARGIN ? Math.max(0, Math.min(b.times.length - 1, Math.round(r.downbeatIndex))) : 0;
+    updateTrack(trackId, { beats: { ...now, downbeatIndex: idx, phaseBar: bar } });
+  } catch (e) {
+    console.warn('RePitch: downbeat re-phasing failed', e);
+  } finally {
+    rephasing.delete(trackId);
   }
 }
 

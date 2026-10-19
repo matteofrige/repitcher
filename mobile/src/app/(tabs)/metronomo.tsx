@@ -1,12 +1,17 @@
+import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import * as RepitchAudio from '../../../modules/repitch-audio';
 import { s } from '../../i18n';
-import { Stepper } from '../../components/Controls';
+import { BeatDots } from '../../components/BeatDots';
+import { BeatsPerBarPicker } from '../../components/BeatsPerBarPicker';
+import { Button, Stepper } from '../../components/Controls';
 import { Toggle } from '../../components/Toggle';
 import { Paper } from '../../components/Paper';
 import { Slider } from '../../components/Slider';
 import { setTools, useTools } from '../../lib/library';
+import { usePlayingTrackId } from '../../lib/player';
 import { showAlert, showPrompt } from '../../lib/promptHost';
 import { setMetronome, toggleMetronome, useMetronome } from '../../lib/metronome';
 import { useColors } from '../../theme';
@@ -19,7 +24,8 @@ const clampBpm = (n: number) => Math.min(MAX_BPM, Math.max(MIN_BPM, n));
 
 export default function MetronomeScreen() {
   const colors = useColors();
-  const { bpm, beatsPerBar, volume, flash } = useTools();
+  const { bpm, beatsPerBar, volume, flash, follow } = useTools();
+  const playingId = usePlayingTrackId();
   const { running, activeBeat } = useMetronome();
 
   const askBpm = async () => {
@@ -95,31 +101,8 @@ export default function MetronomeScreen() {
 
           <View style={{ gap: 8 }}>
             <T variant="headline">{s.metronome.beatsPerBar}</T>
-            <View style={styles.chips} accessibilityRole="radiogroup">
-              {[1, 2, 3, 4, 5, 6].map((n) => {
-                const selected = n === beatsPerBar;
-                return (
-                  <Pressable
-                    key={n}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={s.metronome.beatsA11y(n)}
-                    onPress={() => setMetronome({ beatsPerBar: n })}
-                    style={[
-                      styles.chip,
-                      { backgroundColor: selected ? colors.tint : 'transparent', borderColor: selected ? colors.tint : colors.rule },
-                    ]}>
-                    <Text
-                      allowFontScaling
-                      maxFontSizeMultiplier={1.4}
-                      style={{ fontFamily: fonts.caslon, fontVariant: numerals, fontSize: 17, color: selected ? colors.paper : colors.ink }}>
-                      {n}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Beats count={beatsPerBar} active={activeBeat} />
+            <BeatsPerBarPicker value={beatsPerBar} onChange={(n) => setMetronome({ beatsPerBar: n })} />
+            <BeatDots count={beatsPerBar} active={activeBeat} />
           </View>
 
           <View style={{ gap: 2 }}>
@@ -157,51 +140,39 @@ export default function MetronomeScreen() {
               {running ? s.common.stop : s.common.start}
             </T>
           </Pressable>
+
+          {RepitchAudio.beatFollowAvailable() ? (
+            <View
+              style={{
+                borderWidth: StyleSheet.hairlineWidth * 2,
+                borderColor: colors.rule,
+                borderRadius: 12,
+                padding: 16,
+                gap: 8,
+              }}>
+              <T variant="headline">{s.metronome.followCardTitle}</T>
+              <T variant="footnote">{s.metronome.followCardText}</T>
+              {follow ? (
+                <T variant="footnote" tone="tint">
+                  {s.metronome.followCardOn}
+                </T>
+              ) : null}
+              {playingId ? (
+                <Button kind="secondary" label={s.metronome.followCardOpen} onPress={() => router.push('/player' as Href)} />
+              ) : (
+                <Button kind="secondary" label={s.metronome.followCardLibrary} onPress={() => router.navigate('/libreria' as Href)} />
+              )}
+            </View>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     </Paper>
   );
 }
 
-/** One indicator per beat; the first (accent) is larger. The active one lights up in tint. */
-function Beats({ count, active }: { count: number; active: number }) {
-  const colors = useColors();
-  return (
-    <View style={styles.beats} accessible={false} importantForAccessibility="no-hide-descendants">
-      {Array.from({ length: count }, (_, i) => {
-        const size = i === 0 ? 28 : 20;
-        const on = i === active;
-        return (
-          <View
-            key={i}
-            style={{
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              backgroundColor: on ? colors.tint : 'transparent',
-              borderWidth: StyleSheet.hairlineWidth * 2,
-              borderColor: on ? colors.tint : colors.ink,
-            }}
-          />
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 20 },
   bpmRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap', gap: 12 },
-  chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: {
-    minWidth: 48,
-    minHeight: 44,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  beats: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 36 },
   flashRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
   start: { minHeight: 56, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
 });

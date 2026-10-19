@@ -25,10 +25,12 @@ import java.util.concurrent.Executors
 class RepitchAudioModule : Module() {
   private var player: PlayerEngine? = null
   private var metronome: MetronomeEngine? = null
+  private var follow: BeatFollowEngine? = null
   private var tuner: TunerEngine? = null
   private var tone: ToneEngine? = null
   private var detectExecutor: ExecutorService? = null
   private var probeExecutor: ExecutorService? = null
+  private var beatExecutor: ExecutorService? = null
 
   private val appCtx: Context
     get() = appContext.reactContext?.applicationContext
@@ -40,8 +42,14 @@ class RepitchAudioModule : Module() {
 
   private fun metronome(): MetronomeEngine =
     metronome ?: MetronomeEngine { beat, accent, atMs ->
-      sendEvent("onMetronomeBeat", mapOf("beat" to beat, "accent" to accent, "atMs" to atMs))
+      sendEvent("onMetronomeBeat", mapOf("beat" to beat, "accent" to accent, "atMs" to atMs, "follow" to false))
     }.also { metronome = it }
+
+  /** Main thread (needs the player). */
+  private fun follow(): BeatFollowEngine =
+    follow ?: BeatFollowEngine(player()) { beat, accent, atMs ->
+      sendEvent("onMetronomeBeat", mapOf("beat" to beat, "accent" to accent, "atMs" to atMs, "follow" to true))
+    }.also { follow = it }
 
   private fun tuner(): TunerEngine =
     tuner ?: TunerEngine { reading -> sendEvent("onTunerReading", reading) }.also { tuner = it }
@@ -136,6 +144,40 @@ class RepitchAudioModule : Module() {
       }
     }
 
+    // Beat positions of the whole file (decode + Beat This! via ONNX Runtime, spectral fallback), background thread.
+    AsyncFunction("detectBeats") { uri: String, anchors: List<Double>, beatsPerBar: Int, promise: Promise ->
+      val ctx = try {
+        appCtx
+      } catch (e: Throwable) {
+        promise.reject("E_DETECT", e.message, e)
+        return@AsyncFunction
+      }
+      beatExecutor().execute {
+        try {
+          promise.resolve(BeatDetector.detect(ctx, uri, anchors.toDoubleArray(), beatsPerBar))
+        } catch (e: Throwable) {
+          promise.reject("E_DETECT", e.message ?: "Unable to analyse the file", e)
+        }
+      }
+    }
+
+    // Downbeat phase from the cached activation (no network run). Null when the file has no cache.
+    AsyncFunction("beatDownbeatPhase") { uri: String, beats: List<Double>, beatsPerBar: Int, promise: Promise ->
+      val ctx = try {
+        appCtx
+      } catch (e: Throwable) {
+        promise.resolve(null)
+        return@AsyncFunction
+      }
+      beatExecutor().execute {
+        try {
+          promise.resolve(BeatDetector.downbeatPhase(ctx, uri, beats.toDoubleArray(), beatsPerBar))
+        } catch (e: Throwable) {
+          promise.resolve(null)
+        }
+      }
+    }
+
     // Import check: opens the file with the platform decoder, off the main thread.
     AsyncFunction("probeAudio") { uri: String, promise: Promise ->
       val ctx = try {
@@ -160,6 +202,7 @@ class RepitchAudioModule : Module() {
 
     AsyncFunction("metronomeStart") { promise: Promise ->
       try {
+        follow?.stop()  // mutually exclusive with beat follow
         metronome().start()
         promise.resolve()
       } catch (e: Throwable) {
@@ -182,6 +225,50 @@ class RepitchAudioModule : Module() {
         promise.resolve()
       } catch (e: Throwable) {
         promise.reject("E_METRONOME", e.message ?: "Unable to configure the metronome", e)
+      }
+    }.runOnQueue(Queues.MAIN)
+
+    // --- Beat follow: clicks (mixed in the player's pipeline) and flashes on the beats of the loaded track ---
+
+    AsyncFunction("beatFollowStart") { beats: List<Double>, beatsPerBar: Int, downbeatIndex: Int, clickAudible: Boolean,
+                                       volume: Double, promise: Promise ->
+      try {
+        check(NativeBridge.available) { "Native library not loaded" }
+        metronome?.stop()  // mutually exclusive with the fixed-tempo metronome
+        follow().start(beats.toDoubleArray(), beatsPerBar, downbeatIndex, clickAudible, volume)
+        promise.resolve()
+      } catch (e: Throwable) {
+        promise.reject("E_BEAT_FOLLOW", e.message ?: "Unable to start the beat follow", e)
+      }
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("beatFollowStop") { promise: Promise ->
+      follow?.stop()
+      promise.resolve()
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("beatFollowConfigure") { clickAudible: Boolean, beatsPerBar: Int, downbeatIndex: Int, volume: Double,
+                                           promise: Promise ->
+      follow?.updateOptions(clickAudible, beatsPerBar, downbeatIndex, volume)
+      promise.resolve()
+    }.runOnQueue(Queues.MAIN)
+
+    // File position (s) audible at a touch. RN 0.86 `nativeEvent.timestamp` is MotionEvent.getEventTime()
+    // (TouchesHelper.kt / JSTouchDispatcher.kt), i.e. SystemClock.uptimeMillis(). If the value is missing or not
+    // plausible (not within the last 1.5 s), "now minus 15 ms" like iOS. Null when the track isn't playing.
+    AsyncFunction("beatTapPosition") { uptimeMs: Double, promise: Promise ->
+      try {
+        val audible = player().audibleSeconds()
+        if (audible == null) {
+          promise.resolve(null)
+        } else {
+          val now = android.os.SystemClock.uptimeMillis().toDouble()
+          var t = uptimeMs
+          if (!t.isFinite() || t > now + 50 || now - t > 1500) t = now - 15
+          promise.resolve(audible - (now - t) / 1000.0)
+        }
+      } catch (e: Throwable) {
+        promise.resolve(null)
       }
     }.runOnQueue(Queues.MAIN)
 
@@ -252,6 +339,8 @@ class RepitchAudioModule : Module() {
     }.runOnQueue(Queues.MAIN)
 
     OnDestroy {
+      follow?.stop()
+      follow = null
       tone?.release()
       tone = null
       // Mic and click thread first (they are independent of the player), then the player + session service.
@@ -264,6 +353,8 @@ class RepitchAudioModule : Module() {
         detectExecutor = null
         probeExecutor?.shutdownNow()
         probeExecutor = null
+        beatExecutor?.shutdownNow()
+        beatExecutor = null
       }
       val p = player
       player = null
@@ -272,6 +363,10 @@ class RepitchAudioModule : Module() {
         android.os.Handler(android.os.Looper.getMainLooper()).post { p.release() }
       }
     }
+  }
+
+  private fun beatExecutor(): ExecutorService = synchronized(this) {
+    beatExecutor ?: Executors.newSingleThreadExecutor().also { beatExecutor = it }
   }
 
   private fun startTuner(ctx: Context, promise: Promise) {

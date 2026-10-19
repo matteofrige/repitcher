@@ -21,6 +21,7 @@ import { BeatFlash } from '../components/BeatFlash';
 import { PromptHost } from '../components/PromptHost';
 import { runDemo } from '../lib/demo';
 import { loadLibrary, useLibraryLoaded } from '../lib/library';
+import { initBeatFollow } from '../lib/beatFollow';
 import { initMetronome } from '../lib/metronome';
 import { getPrefs } from '../lib/prefs';
 import { initReview } from '../lib/review';
@@ -49,6 +50,7 @@ function Navigator() {
   useInitPlayer();
   useEffect(() => {
     initMetronome();
+    initBeatFollow();
     initReview();
   }, []);
   return (
@@ -74,6 +76,7 @@ function Navigator() {
           name="guida"
           options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }}
         />
+        <Stack.Screen name="beat-edit" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="about" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="backup" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="temperamento" options={{ presentation: 'modal', headerShown: false }} />

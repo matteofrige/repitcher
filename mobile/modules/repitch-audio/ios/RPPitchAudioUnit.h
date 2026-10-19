@@ -10,6 +10,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Transposition in semitones. Thread-safe; picked up by the render thread.
 @property (nonatomic) float semitones;
 
+/// Delay the stretcher adds to the signal (input + output latency), in seconds. Valid once the
+/// render resources are allocated (0 before). Read from the main thread.
+@property (nonatomic, readonly) double latencySeconds;
+
 /// Ask the render thread to flush the stretcher's internal state (call after a seek).
 - (void)requestReset;
 
