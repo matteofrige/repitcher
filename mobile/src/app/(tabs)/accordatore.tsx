@@ -22,7 +22,10 @@ import { T, fonts, numerals } from '../../theme/type';
 
 const RANGE = 50; // cents
 const PAD = 16;
-const GAUGE_H = 56;
+const GAUGE_H = 120;
+const SCALE_Y = GAUGE_H - 30;
+const NEEDLE_HEAD = 16;
+const NEAR_CENTS = 15;
 const CHIP_GAP = 6;
 const IN_TUNE_LEAVE_CENTS = 8;
 
@@ -194,6 +197,8 @@ export default function TunerScreen() {
     .map((v, i) => `${((i / Math.max(1, wave.length - 1)) * waveW).toFixed(1)},${(22 - Math.max(-1, Math.min(1, v)) * 20).toFixed(1)}`)
     .join(' ');
 
+  const needleColor = !note ? colors.pencil : inTune ? colors.success : Math.abs(cents) <= NEAR_CENTS ? colors.ink : colors.danger;
+
   const verdict = !note
     ? s.tuner.playNote
     : inTune
@@ -271,26 +276,32 @@ export default function TunerScreen() {
                   <Svg width={width} height={GAUGE_H}>
                     <Rect
                       x={xFor(-IN_TUNE_CENTS)}
-                      y={4}
+                      y={0}
                       width={xFor(IN_TUNE_CENTS) - xFor(-IN_TUNE_CENTS)}
-                      height={GAUGE_H - 22}
+                      height={SCALE_Y}
                       fill={inTune ? colors.success : colors.tint}
-                      opacity={inTune ? 0.4 : 0.22}
+                      opacity={inTune ? 0.45 : 0.18}
                     />
+                    {[-NEAR_CENTS, NEAR_CENTS].map((c) => (
+                      <Line key={`z${c}`} x1={xFor(c)} x2={xFor(c)} y1={SCALE_Y - 34} y2={SCALE_Y} stroke={colors.inkSecondary} strokeWidth={1} strokeDasharray="3,3" />
+                    ))}
                     {Array.from({ length: 11 }, (_, i) => (i - 5) * 10).map((c) => (
                       <Line
                         key={c}
                         x1={xFor(c)}
                         x2={xFor(c)}
-                        y1={GAUGE_H - 22}
-                        y2={GAUGE_H - 22 + (c === 0 || Math.abs(c) === RANGE ? 14 : 8)}
+                        y1={SCALE_Y}
+                        y2={SCALE_Y + (c === 0 || Math.abs(c) === RANGE ? 18 : 10)}
                         stroke={colors.ink}
-                        strokeWidth={c === 0 ? 1.5 : 1}
+                        strokeWidth={c === 0 ? 3 : 1.5}
                       />
                     ))}
-                    <Line x1={PAD} x2={width - PAD} y1={GAUGE_H - 22} y2={GAUGE_H - 22} stroke={colors.ink} strokeWidth={1} />
-                    {[-50, 0, 50].map((c) => (
-                      <SvgText key={c} x={xFor(c)} y={GAUGE_H - 1} fontFamily={fonts.caslon} fontSize={11} fill={colors.inkSecondary} textAnchor="middle">
+                    {[-25, 25].map((c) => (
+                      <Line key={`m${c}`} x1={xFor(c)} x2={xFor(c)} y1={SCALE_Y} y2={SCALE_Y + 14} stroke={colors.ink} strokeWidth={1.5} />
+                    ))}
+                    <Line x1={PAD} x2={width - PAD} y1={SCALE_Y} y2={SCALE_Y} stroke={colors.ink} strokeWidth={1.5} />
+                    {[-50, -25, 0, 25, 50].map((c) => (
+                      <SvgText key={c} x={xFor(c)} y={GAUGE_H - 4} fontFamily={fonts.caslon} fontSize={14} fill={colors.inkSecondary} textAnchor="middle">
                         {signed(c)}
                       </SvgText>
                     ))}
@@ -298,14 +309,41 @@ export default function TunerScreen() {
                   <Animated.View
                     pointerEvents="none"
                     style={[
-                      { position: 'absolute', left: xFor(0) - 1, top: 0, width: 2, height: GAUGE_H - 20, backgroundColor: inTune ? colors.success : colors.ink, opacity: hasSignal ? 1 : 0.3 },
+                      { position: 'absolute', left: xFor(0) - NEEDLE_HEAD / 2, top: 0, width: NEEDLE_HEAD, height: SCALE_Y + 6, alignItems: 'center', opacity: hasSignal ? 1 : 0.3 },
                       needleStyle,
-                    ]}
-                  />
+                    ]}>
+                    <View style={{ width: NEEDLE_HEAD, height: NEEDLE_HEAD, borderRadius: NEEDLE_HEAD / 2, backgroundColor: needleColor }} />
+                    <View style={{ width: 6, flex: 1, borderRadius: 3, backgroundColor: needleColor, marginTop: -4 }} />
+                  </Animated.View>
                 </View>
-                <T variant="headline" style={{ textAlign: 'center', color: inTune ? colors.success : colors.ink }}>
-                  {verdict}
-                </T>
+                <View style={{ minHeight: 76, alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+                  {!note ? (
+                    <T variant="headline" style={{ textAlign: 'center' }}>
+                      {s.tuner.playNote}
+                    </T>
+                  ) : (
+                    <>
+                      <Text
+                        allowFontScaling
+                        maxFontSizeMultiplier={1.2}
+                        style={{
+                          fontFamily: fonts.caslon,
+                          fontVariant: numerals,
+                          fontSize: inTune ? 32 : 40,
+                          lineHeight: inTune ? 40 : 46,
+                          color: needleColor,
+                          textAlign: 'center',
+                        }}>
+                        {inTune ? s.tuner.inTune : `${signed(cents)} ¢`}
+                      </Text>
+                      {!inTune ? (
+                        <T variant="headline" style={{ textAlign: 'center', color: needleColor }}>
+                          {cents > 0 ? s.tuner.sharpWord : s.tuner.flatWord}
+                        </T>
+                      ) : null}
+                    </>
+                  )}
+                </View>
               </View>
 
               <View accessible={false} importantForAccessibility="no-hide-descendants">

@@ -283,6 +283,8 @@ export const core = {
     noSignalA11y: 'Nessun segnale. Suona una nota',
     readingA11y: (name: string, octave: number, verdict: string, hz: string) => `${name} ${octave}, ${verdict}, ${hz} hertz`,
     inTune: 'intonato',
+    sharpWord: 'crescente',
+    flatWord: 'calante',
     sharp: (signedCents: string) => `crescente · ${signedCents} cents`,
     flat: (signedCents: string) => `calante · ${signedCents} cents`,
     /** Frequency readout with one decimal and the locale's decimal separator. */

@@ -267,6 +267,8 @@ export const core: CoreStrings = {
     noSignalA11y: 'No signal. Play a note',
     readingA11y: (name: string, octave: number, verdict: string, hz: string) => `${name} ${octave}, ${verdict}, ${hz} hertz`,
     inTune: 'in tune',
+    sharpWord: 'sharp',
+    flatWord: 'flat',
     sharp: (signedCents: string) => `sharp · ${signedCents} cents`,
     flat: (signedCents: string) => `flat · ${signedCents} cents`,
     frequency: (hz: number) => `${hz.toFixed(1)} Hz`,
