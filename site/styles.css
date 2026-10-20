@@ -98,6 +98,9 @@ p { margin: 0; }
 .badge { display: inline-flex; flex-direction: column; justify-content: center; min-height: 52px; padding: .45em 1.3em; border: 1px solid var(--ink); border-radius: 12px; line-height: 1.2; color: var(--ink); cursor: default; user-select: none; }
 .badge-small { font-style: italic; font-size: .8rem; color: var(--sepia); }
 .badge-big { font-size: 1.05rem; }
+.badge-link { cursor: pointer; user-select: auto; text-decoration: none; transition: transform .35s var(--ease), border-color .2s; }
+.badge-link .badge-small { color: var(--blue); }
+.badge-link:hover { transform: translateY(-2px); border-color: var(--blue); text-decoration: none; }
 
 /* --- Apertura -------------------------------------------------------------- */
 .hero { display: grid; gap: clamp(32px, 6vw, 72px); padding-block: clamp(32px, 6vw, 72px) clamp(64px, 10vw, 128px); align-items: start; }
@@ -222,6 +225,17 @@ input[type=range]:focus-visible { outline: 2px solid var(--blue); outline-offset
 .respect-big { font-family: var(--fell); font-size: clamp(2.25rem, 7.6vw, 5.25rem); line-height: 1.08; letter-spacing: -.015em; max-width: 14em; text-wrap: balance; }
 .respect-big span { color: var(--blue); }
 .respect-small { margin-top: clamp(24px, 4vw, 40px); color: var(--sepia); }
+
+/* --- Android in prova --------------------------------------------------------------------------------------- */
+.beta { padding-block: clamp(56px, 9vw, 112px); margin-bottom: clamp(72px, 12vw, 160px); }
+.beta-lead { max-width: 34em; margin-top: 16px; font-size: clamp(1.125rem, 2.2vw, 1.25rem); }
+.beta-steps { list-style: none; counter-reset: passo; margin: clamp(28px, 4vw, 44px) 0; padding: 0; border-top: 1px solid var(--rule); max-width: 44rem; }
+.beta-steps li { counter-increment: passo; position: relative; padding: 18px 0 18px 3em; border-bottom: 1px solid var(--rule-soft); }
+.beta-steps li::before { content: counter(passo); position: absolute; left: 0; top: 14px; font-family: var(--fell); font-size: 2rem; line-height: 1; font-variant-numeric: lining-nums; color: var(--blue); }
+.beta-steps strong { display: block; font-weight: 400; font-size: 1.1em; color: var(--ink); }
+.beta-steps .btn { display: flex; width: fit-content; margin-top: 14px; }
+.beta-note { margin-top: 20px; max-width: 34em; font-style: italic; color: var(--sepia); }
+@media (max-width: 420px) { .beta-steps .btn { width: 100%; padding-inline: 1em; } }
 
 /* --- Sostieni ----------------------------------------------------------------------------------------- */
 .support { padding-block: 0 clamp(72px, 12vw, 160px); }
