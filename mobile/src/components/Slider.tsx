@@ -34,14 +34,22 @@ export function Slider({ value, min, max, step = 1, onChange, label, valueText }
     if (v !== value) onChange(v);
   };
 
-  const gesture = Gesture.Pan()
-    .minDistance(0)
-    .onBegin((e) => {
+  // Sliders sit in vertical ScrollViews: reacting on touch-down moved the value whenever a scroll started on the
+  // track (e.g. the speed of a track silently changing by a few %). The drag now needs a horizontal move and gives
+  // way to vertical ones; a plain tap still jumps to the touched point.
+  const pan = Gesture.Pan()
+    .activeOffsetX([-6, 6])
+    .failOffsetY([-8, 8])
+    .onStart((e) => {
       scheduleOnRN(emit, e.x);
     })
     .onUpdate((e) => {
       scheduleOnRN(emit, e.x);
     });
+  const tap = Gesture.Tap().onEnd((e, success) => {
+    if (success) scheduleOnRN(emit, e.x);
+  });
+  const gesture = Gesture.Race(pan, tap);
 
   const onAction = (e: AccessibilityActionEvent) => {
     const d = e.nativeEvent.actionName === 'increment' ? step : -step;
