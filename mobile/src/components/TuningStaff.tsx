@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
 import { View, type AccessibilityActionEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -41,6 +42,9 @@ const LABEL_Y = BOTTOM_Y + 4 * HALF + 20;
 const REF_STEP = 3; // A4
 const MUSIC_SIZE = SPACE * 4;
 const EASE = Easing.out(Easing.cubic);
+// Drag from the note head: square of ±GRAB_RADIUS around it. Anywhere else the drag needs a HOLD_MS press first.
+const GRAB_RADIUS = 28;
+const HOLD_MS = 300;
 
 const yForStep = (step: number) => BOTTOM_Y - step * HALF;
 const clamp = (n: number) => Math.min(MAX_SEMITONES, Math.max(-MAX_SEMITONES, n));
@@ -66,6 +70,7 @@ export function TuningStaff({ tuning, onChangeSemitones }: Props) {
   // Shared mirrors of the controlled value, read by gesture worklets only.
   const current = useSharedValue(value);
   const noteY = useSharedValue(yForStep(note.step));
+  const noteXs = useSharedValue(0);
   const startValue = useSharedValue(value);
   const lastEmitted = useSharedValue(value);
   const ty = useSharedValue(yForStep(note.step) - BOTTOM_Y);
@@ -84,19 +89,43 @@ export function TuningStaff({ tuning, onChangeSemitones }: Props) {
     tick();
   };
 
-  const pan = Gesture.Pan()
+  const grab = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  };
+
+  // The staff sits in a vertical ScrollView and the drag is vertical too: grabbing anywhere stole the scroll.
+  // So the note drags at once only when the finger starts on it; elsewhere on the staff it needs a short hold
+  // (a quick swipe there always scrolls).
+  const onDragBegin = () => {
+    'worklet';
+    startValue.set(current.get());
+    lastEmitted.set(current.get());
+  };
+  const onDragUpdate = (translationY: number) => {
+    'worklet';
+    const n = Math.min(MAX_SEMITONES, Math.max(-MAX_SEMITONES, startValue.get() - Math.round(translationY / SPACE)));
+    if (n !== lastEmitted.get()) {
+      lastEmitted.set(n);
+      scheduleOnRN(emit, n);
+    }
+  };
+
+  const panNote = Gesture.Pan()
     .minDistance(8)
-    .onBegin(() => {
-      startValue.set(current.get());
-      lastEmitted.set(current.get());
+    .onTouchesDown((e, manager) => {
+      const t = e.allTouches[0];
+      if (!t || Math.abs(t.x - noteXs.get()) > GRAB_RADIUS || Math.abs(t.y - noteY.get()) > GRAB_RADIUS) manager.fail();
     })
-    .onUpdate((e) => {
-      const n = Math.min(MAX_SEMITONES, Math.max(-MAX_SEMITONES, startValue.get() - Math.round(e.translationY / SPACE)));
-      if (n !== lastEmitted.get()) {
-        lastEmitted.set(n);
-        scheduleOnRN(emit, n);
-      }
-    });
+    .onBegin(onDragBegin)
+    .onUpdate((e) => onDragUpdate(e.translationY));
+
+  const panHold = Gesture.Pan()
+    .activateAfterLongPress(HOLD_MS)
+    .onBegin(onDragBegin)
+    .onStart(() => {
+      scheduleOnRN(grab);
+    })
+    .onUpdate((e) => onDragUpdate(e.translationY));
 
   const tap = Gesture.Tap().onEnd((e, success) => {
     if (!success) return;
@@ -104,7 +133,7 @@ export function TuningStaff({ tuning, onChangeSemitones }: Props) {
     if (n !== current.get()) scheduleOnRN(emit, n);
   });
 
-  const gesture = Gesture.Race(pan, tap);
+  const gesture = Gesture.Race(panNote, panHold, tap);
 
   const onAction = (e: AccessibilityActionEvent) => {
     const n = clamp(value + (e.nativeEvent.actionName === 'increment' ? 1 : -1));
@@ -117,6 +146,9 @@ export function TuningStaff({ tuning, onChangeSemitones }: Props) {
   const pair = Math.min(56, (width - CLEF_END) / 5); // half distance ref ↔ note when both are drawn
   const refX = center - pair;
   const noteX = value === 0 ? center : center + pair;
+  useEffect(() => {
+    noteXs.set(noteX);
+  }, [noteX, noteXs]);
   const refLabel = s.tuning.refLabel(tuning.refHz);
   const ledgers = ledgerSteps(note.step);
   // The layer is translated by (yForStep(step) − BOTTOM_Y), so ledgers are drawn counter-offset.
