@@ -5,6 +5,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
+import { detect, sh } from './footage.mjs';
 import { DESIGN, FONT_FILES, THEMES, paper, svgDoc, textPath, wrap } from './lib.mjs';
 
 const t = THEMES.light;
@@ -22,34 +23,10 @@ const SCENES = [
 ];
 const FADE = 0.3, FPS = 30, LEAD = 0.5;
 
-const sh = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28 });
 const ff = (args) => sh('ffmpeg', ['-loglevel', 'error', '-y', ...args]);
 const font = { fontFiles: Object.values(FONT_FILES), loadSystemFonts: false };
 const png = (svg, file) => writeFileSync(file, new Resvg(svg, { fitTo: { mode: 'original' }, font }).render().asPng());
 const balanced = (f, tx, sz, mw) => { const n = wrap(f, tx, sz, mw).length; let w = mw; while (w > 200 && wrap(f, tx, sz, w - 12).length === n) w -= 12; return wrap(f, tx, sz, w); };
-
-// Finds [ready, end] (s) in a raw clip: ready = first frame showing app content (paper background with
-// text, i.e. not the home screen, the black launch card or the sparse splash); end = first later frame
-// that is no longer paper (the home screen after terminate).
-function detect(file) {
-  const w = 240, h = 320, px = w * h;
-  const buf = sh('ffmpeg', ['-loglevel', 'error', '-i', file, '-vf', `fps=10,scale=${w}:${h},format=rgb24`, '-f', 'rawvideo', '-']);
-  const n = Math.floor(buf.length / (px * 3));
-  let ready = -1, end = n / 10;
-  for (let i = 0; i < n; i++) {
-    let paperPx = 0, dark = 0;
-    for (let k = 0; k < px; k++) {
-      const o = (i * px + k) * 3, r = buf[o], g = buf[o + 1], b = buf[o + 2];
-      if (r > 215 && r < 252 && g > 205 && g < 245 && b > 165 && b < 220 && r - b > 20) paperPx++;
-      else if (r + g + b < 450) dark++;
-    }
-    const pf = paperPx / px, ink = dark / px;
-    if (ready < 0) { if (pf > 0.7 && ink > 0.008) ready = i / 10; }
-    else if (pf < 0.2) { end = i / 10; break; }
-  }
-  if (ready < 0) throw new Error(`no app content found in ${file}`);
-  return { ready, end };
-}
 
 // Background (paper + title + shadow), rounded mask and frame stroke for a canvas/footage geometry.
 function layers(key, W, H, g, texts) {
@@ -82,16 +59,18 @@ const MUSIC = join(DESIGN, 'audio/the-mountain-royal-baroque.mp3');
 const MUSIC_START = 0, MUSIC_FADE_OUT = 1.5;
 
 // Crossfade the clips and add a stereo AAC track: the music (faded, loudness-normalised) or silence.
-function join_(clips, durs, out, W, H) {
+// raw = App Store: hard cuts and a silent track, no fades nor music.
+function join_(clips, durs, out, W, H, raw = false) {
   const args = clips.flatMap((c) => ['-i', c]);
   let chain = '', prev = '[0:v]', acc = durs[0];
-  for (let i = 1; i < clips.length; i++) {
+  if (raw) { chain = clips.map((_, i) => `[${i}:v]`).join('') + `concat=n=${clips.length}:v=1:a=0[c];`; prev = '[c]'; acc = durs.reduce((a, d) => a + d, 0); }
+  else for (let i = 1; i < clips.length; i++) {
     const off = (acc - FADE).toFixed(3);
     chain += `${prev}[${i}:v]xfade=transition=fade:duration=${FADE}:offset=${off}[x${i}];`;
     prev = `[x${i}]`; acc += durs[i] - FADE;
   }
   chain += `${prev}fps=${FPS},format=yuv420p[v]`;
-  const music = existsSync(MUSIC);
+  const music = !raw && existsSync(MUSIC);
   const ain = music ? ['-ss', String(MUSIC_START), '-i', MUSIC] : ['-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo'];
   if (music) chain += `;[${clips.length}:a]atrim=0:${acc.toFixed(3)},afade=t=in:d=0.2,afade=t=out:st=${(acc - MUSIC_FADE_OUT).toFixed(3)}:d=${MUSIC_FADE_OUT},loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,aformat=channel_layouts=stereo[a]`;
   ff([...args, ...ain, '-filter_complex', chain, '-map', '[v]', '-map', music ? '[a]' : `${clips.length}:a`, '-t', acc.toFixed(3),
@@ -102,29 +81,26 @@ function join_(clips, durs, out, W, H) {
 const rawDir = (kind, lang) => join(DESIGN, 'raw/video', kind, lang === 'en' ? 'en' : '');
 const dims = (f) => sh('ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', f]).toString().trim().split(',').map(Number);
 
-// Portrait App Store layouts: title band on top (18%), footage fitted below it, centred.
-function portrait(kind, lang, W, H, K) {
+// Portrait App Store previews: the bare screen capture filling the whole canvas, no framing, overlays, fades
+// nor music (Apple 2.3.4). Raw clips share the canvas aspect (cropped to fit).
+function portrait(kind, lang, W, H) {
   const raws = SCENES.map((s) => join(rawDir(kind, lang), `raw-${s.id}.mp4`));
   if (!raws.every(existsSync)) { console.warn(`! ${kind} ${lang}: missing raw clips, skipped`); return; }
-  const [rw, rh] = dims(raws[0]);
-  const band = Math.round(H * 0.18), margin = Math.round(28 * K);
-  const h = H - band - margin, w = Math.round((h * rw) / rh) & ~1;
-  const g = { x: Math.round((W - w) / 2), y: band, w, h: h & ~1, r: Math.round(54 * K), shadow: Math.round(18 * K) };
   const clips = [], durs = [];
   SCENES.forEach((s, i) => {
-    const [title] = s[lang];
-    const size = 72 * K, tl = balanced('fell', title, size, W - 140 * K);
-    const lh = size * 1.08, y0 = (band - tl.length * lh) / 2 + size * 0.78;
-    const text = tl.map((l, j) => textPath('fell', l, W / 2, y0 + j * lh, size, t.ink, 'middle')).join('');
     const key = `${kind}-${lang}-${s.id}`;
-    layers(key, W, H, g, text);
+    const { ready, end } = detect(raws[i]);
+    const start = ready + LEAD, padT = Math.max(0, s.len - Math.max(0.5, end - start));
+    const vf = `[0:v]fps=${FPS},trim=start=${start},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=${padT.toFixed(3)},trim=duration=${s.len},` +
+      `scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H},format=yuv420p[out]`;
     const out = join(TMP, `${key}.mp4`);
-    const d = sceneClip(out, key, raws[i], W, H, g, s.len);
-    console.log(`  ${key} ready=${d.ready}s end=${d.end}s`);
+    ff(['-i', raws[i], '-filter_complex', vf, '-map', '[out]', '-t', String(s.len), '-r', String(FPS),
+      '-c:v', 'libx264', '-crf', '12', '-preset', 'fast', '-pix_fmt', 'yuv420p', out]);
+    console.log(`  ${key} ready=${ready}s end=${end}s`);
     clips.push(out); durs.push(s.len);
   });
   const file = join(OUT, `appstore-${kind}-${lang}.mp4`);
-  console.log(file, join_(clips, durs, file, W, H).toFixed(2) + 's');
+  console.log(file, join_(clips, durs, file, W, H, true).toFixed(2) + 's');
 }
 
 // Landscape 1920x1080: iPhone footage left, title and subtitle right.
@@ -188,8 +164,8 @@ function instagram(lang, fmt) {
 const only = process.argv.slice(2), want = (k) => !only.length || only.includes(k);
 for (const lang of ['it', 'en']) {
   if (want('appstore')) {
-    portrait('iphone', lang, 886, 1920, 886 / 1320);
-    portrait('ipad', lang, 1200, 1600, 1200 / 1320);
+    portrait('iphone', lang, 886, 1920);
+    portrait('ipad', lang, 1200, 1600);
   }
   if (want('youtube')) youtube(lang);
   if (want('instagram')) { instagram(lang, 'feed'); instagram(lang, 'reel'); }
