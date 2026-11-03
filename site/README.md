@@ -1,6 +1,6 @@
 # Sito di RePitch
 
-Landing page statica (HTML, CSS e moduli ES, nessuna dipendenza, nessuna build). Font serviti dal sito stesso, nessun cookie, nessuna chiamata a servizi esterni.
+Landing page statica (HTML, CSS e moduli ES, nessuna dipendenza, nessuna build). Font serviti dal sito stesso, Google Analytics 4 solo dopo consenso (banner in `consent.js`, ID in `config.js`).
 
 ## Cosa cambiare prima di pubblicare
 
@@ -10,6 +10,7 @@ Landing page statica (HTML, CSS e moduli ES, nessuna dipendenza, nessuna build).
 |---|---|
 | `DONATION_URL` | link PayPal: `https://www.paypal.com/paypalme/TUO-UTENTE` (paypal.me) oppure `https://www.paypal.com/donate/?hosted_button_id=ID` (pulsante ospitato) |
 | `CONTACT_EMAIL` | l'indirizzo mostrato nel footer e in `privacy.html` |
+| `GA_ID` | ID di misurazione GA4 (`G-…`) |
 
 Al caricamento, `main.js` imposta l'`href` di tutti gli elementi `[data-donate]` (i due bottoni "Sostieni il progetto" e "Dona con PayPal") e di `[data-contact]` (footer, privacy).
 

@@ -8,3 +8,6 @@ export const DONATION_URL = 'https://paypal.me/matteofrige459';
 
 // Indirizzo email mostrato nel footer e in privacy.html.
 export const CONTACT_EMAIL = 'info@re-pitch.it';
+
+// ID di misurazione di Google Analytics 4. Parte solo dopo il consenso (vedi consent.js).
+export const GA_ID = 'G-P1ESQRFM2Y';

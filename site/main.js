@@ -1,6 +1,7 @@
 // RePitch — comportamento del sito. Moduli ES, nessuna dipendenza.
 // Senza JavaScript la pagina resta completa: qui si aggiungono solo suono e animazioni.
-import { DONATION_URL, CONTACT_EMAIL } from './config.js';
+import { DONATION_URL, CONTACT_EMAIL, GA_ID } from './config.js';
+import { initConsent } from './consent.js';
 
 document.documentElement.classList.replace('no-js', 'js');
 
@@ -10,6 +11,7 @@ document.querySelectorAll('[data-contact]').forEach((a) => {
   a.href = `mailto:${CONTACT_EMAIL}`;
   if (a.hasAttribute('data-contact-text')) a.textContent = CONTACT_EMAIL;
 });
+initConsent(GA_ID);
 
 // --- Ascolta il tuo La -----------------------------------------------------------
 const root = document.querySelector('[data-la]');
