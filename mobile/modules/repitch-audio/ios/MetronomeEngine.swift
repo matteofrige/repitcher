@@ -19,6 +19,11 @@ import AVFoundation
 /// cycle), converts each upcoming beat to a core frame (host time → core frame through the last render block,
 /// plus the pitch unit's latency) and schedules it sample-accurately; JS gets the event at scheduling time,
 /// with the same `atMs` convention, so it has ~300 ms of lead for the flash.
+///
+/// Count-in (`playWithCountIn`): before the track starts, N clicks (force-audible even if the follow click is
+/// off) are queued on the host clock, extending the beat grid backwards; the player node is started with
+/// `play(at:)` so the track begins on the entry beat. The pump queues the count-in first and only then hands
+/// over to the regular follow, without a resync (which would clear the pending clicks).
 /// Main thread only.
 final class MetronomeEngine {
   /// (beat in bar, accent, atMs, follow)
@@ -50,6 +55,13 @@ final class MetronomeEngine {
   private let followLookAhead = 0.35
   private let followLateTolerance = 0.02
   private let followJumpTolerance = 0.05
+
+  // Count-in state
+  private struct CountInClick { let host: Double; let inBar: Int; let force: Bool }
+  private var countIn: [CountInClick] = []
+  private var countInNext = 0
+  private var countInEpoch = 0
+  private let countInLead = 0.15
 
   init(player: PlayerEngine) {
     self.player = player
@@ -132,8 +144,45 @@ final class MetronomeEngine {
     core.setFollow(true, clickAudible: clickAudible)
   }
 
+  /// Starts the track after a count-in. `times` are file-time seconds (may precede the current position), the last
+  /// one being the entry beat; earlier ones are count-in clicks. `inBars` holds each item's bar position.
+  func playWithCountIn(times: [Double], inBars: [Int]) throws {
+    guard isFollowing, !times.isEmpty, times.count == inBars.count, !player.isPlaying else {
+      try player.play()
+      return
+    }
+    if !player.engine.isRunning { try bringUpEngine() }
+    let p = player.startPositionSeconds
+    let lat = player.pitchLatencySeconds
+    let now = AVAudioTime.seconds(forHostTime: mach_absolute_time())
+    // Host time at which the node starts rendering frame p; a click for file time t renders at start + (t - p) + lat.
+    let start = now + countInLead + max(0, (p - times[0]) - lat)
+    cancelCountIn()
+    countIn = times.enumerated().map { i, t in
+      CountInClick(host: start + (t - p) + lat, inBar: inBars[i], force: i < times.count - 1)
+    }
+    countInNext = 0
+    do {
+      try player.play(atHostSeconds: start)
+    } catch {
+      countIn = []
+      throw error
+    }
+    countInEpoch = player.playbackEpoch
+    // Regular beats resume after the entry beat.
+    followEpoch = nil
+    followNextBeat = firstBeat(atOrAfter: times[times.count - 1] + 0.001)
+  }
+
+  private func cancelCountIn() {
+    if !countIn.isEmpty { core.clearScheduled() }
+    countIn = []
+    countInNext = 0
+  }
+
   func stopFollow() {
     guard isFollowing else { return }
+    cancelCountIn()
     core.clearScheduled()
     core.setFollow(false, clickAudible: true)
     isFollowing = false
@@ -144,6 +193,7 @@ final class MetronomeEngine {
   }
 
   private func resetFollowCursor() {
+    cancelCountIn()
     followEpoch = nil
     followNextBeat = 0
   }
@@ -160,6 +210,31 @@ final class MetronomeEngine {
 
   private func followPump(now: Double, epochMs: Double) {
     _ = core.drainBeats(withLatency: 0)  // internal events are unused: follow reports at scheduling time
+    if !countIn.isEmpty {
+      if !player.isPlaying || player.playbackEpoch != countInEpoch {
+        // Paused or seeked during the count-in: the regular follow (resync below) takes over.
+        cancelCountIn()
+        followEpoch = nil
+      } else {
+        while countInNext < countIn.count {
+          let c = countIn[countInNext]
+          if c.host - now > followLookAhead { break }
+          let accent = c.inBar == 0
+          if !core.scheduleClick(atHostSeconds: c.host, accent: accent, beat: c.inBar, forceAudible: c.force) { return }  // retry next pump
+          countInNext += 1
+          onBeat?(c.inBar, accent, epochMs + (c.host + latency - now) * 1000, true)
+        }
+        // Regular beats only once the whole count-in is queued (the core queue must stay in ascending order).
+        if countInNext < countIn.count { return }
+        guard let snap = player.playbackSnapshot() else { return }  // track not rendering yet
+        // Hand over without a resync (it would clear the count-in clicks still pending).
+        followEpoch = snap.epoch
+        followLastHost = snap.hostSeconds
+        followLastFrame = snap.fileFrame
+        countIn = []
+        countInNext = 0
+      }
+    }
     guard let snap = player.playbackSnapshot() else {
       if followEpoch != nil {  // paused / stopped / engine down
         core.clearScheduled()
@@ -190,7 +265,7 @@ final class MetronomeEngine {
       // Bar position counted from the user-chosen downbeat (can be negative before it).
       let inBar = ((i - followDownbeat) % followBeatsPerBar + followBeatsPerBar) % followBeatsPerBar
       let accent = inBar == 0
-      if !core.scheduleClick(atHostSeconds: beatHost, accent: accent, beat: inBar) { break }  // retry next pump
+      if !core.scheduleClick(atHostSeconds: beatHost, accent: accent, beat: inBar, forceAudible: false) { break }  // retry next pump
       followNextBeat += 1
       onBeat?(inBar, accent, epochMs + (beatHost + latency - now) * 1000, true)
     }
@@ -232,6 +307,7 @@ final class MetronomeEngine {
 
   private func handleInterruption(began: Bool, shouldResume: Bool) {
     if began {
+      cancelCountIn()
       if isFollowing {
         let beats = followBeats
         resumeFollowAfterInterruption = true

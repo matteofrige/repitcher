@@ -13,6 +13,9 @@ import kotlin.math.abs
  *  - Events: an ~8 ms pump looks 0.35 s ahead of the audible file position and emits `onMetronomeBeat` (follow = true)
  *    at that moment, with `atMs` = epoch ms (JS Date.now() clock) at which the beat is heard, so JS has ~300 ms of
  *    lead for the flash. Pause / seek / track change reset the cursor (nothing is emitted while paused).
+ *  - Count-in: [armCountIn] hands [PitchAudioProcessor] a plan (virtual beats before the entry beat). The processor
+ *    inserts the clicks as pre-roll audio at the next segment start; flashes for them are emitted only once the audio
+ *    path has consumed the plan (`processor.activeCountIn === countIn`), before the regular beats resume.
  *
  * Main thread only.
  */
@@ -31,6 +34,10 @@ class BeatFollowEngine(
   private var downbeat = 0
   private var clickAudible = true
   private var volume = 0.8
+
+  private var countIn: PitchAudioProcessor.CountInPlan? = null
+  private var ciNext = 0
+  private var ciConsumed = false
 
   private var nextBeat = 0
   private var cursorValid = false
@@ -69,7 +76,25 @@ class BeatFollowEngine(
     if (isFollowing) processor.configureFollow(true, clickAudible, this.beatsPerBar, downbeat, volume)
   }
 
+  /** Arms a count-in for the play about to start at [startSeconds]. Call BEFORE the (flushing) start of playback. */
+  fun armCountIn(times: DoubleArray, inBars: IntArray, startSeconds: Double) {
+    val plan = PitchAudioProcessor.CountInPlan(times, inBars, (startSeconds * 1e6).toLong())
+    processor.armedCountIn = plan
+    countIn = plan
+    ciNext = 0
+    ciConsumed = false
+    cursorValid = false
+  }
+
+  /** Drops a plan the audio path has not consumed yet (pause / seek before the count-in started). */
+  fun cancelPendingCountIn() {
+    processor.armedCountIn = null
+    if (!ciConsumed) countIn = null
+  }
+
   fun stop() {
+    countIn = null
+    processor.armedCountIn = null
     if (!isFollowing) return
     isFollowing = false
     main.removeCallbacks(pump)
@@ -95,6 +120,19 @@ class BeatFollowEngine(
       cursorValid = false
       return
     }
+    var ci = countIn
+    if (ci != null) {
+      if (processor.activeCountIn === ci) {
+        ciConsumed = true
+      } else if (ciConsumed) {  // flushed by a seek or the like
+        countIn = null
+        ci = null
+        cursorValid = false
+      } else {
+        cursorValid = false
+        return  // waiting for the audio path to consume the plan
+      }
+    }
     val up = SystemClock.uptimeMillis()
     val wallMs = System.currentTimeMillis()
     var resync = !cursorValid
@@ -109,9 +147,26 @@ class BeatFollowEngine(
     if (resync) {
       val emitted = nextBeat
       nextBeat = firstBeat(pos - LATE_TOLERANCE)
+      if (ci != null) {
+        nextBeat = maxOf(nextBeat, firstBeat(ci.times.last() + 0.001))
+        ciNext = 0
+        while (ciNext < ci.times.size && ci.times[ciNext] < pos - LATE_TOLERANCE) ciNext++
+      }
       // A small hiccup of the clock must not re-flash beats already emitted; a real seek (or first sync) restarts.
       if (cursorValid && abs(jump) < 0.3 && nextBeat < emitted) nextBeat = emitted
       cursorValid = true
+    }
+    if (ci != null) {
+      while (ciNext < ci.times.size) {
+        val dt = ci.times[ciNext] - pos
+        if (dt > LOOK_AHEAD) break
+        val inBar = ci.inBars[ciNext]
+        ciNext++
+        if (dt < -LATE_TOLERANCE) continue
+        onBeat(inBar, inBar == 0, wallMs + dt * 1000.0)
+      }
+      if (ciNext < ci.times.size) return  // regular beats wait for the count-in
+      if (pos > ci.times.last()) countIn = null
     }
     while (nextBeat < beats.size) {
       val i = nextBeat

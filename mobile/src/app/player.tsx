@@ -50,7 +50,7 @@ function Section({ n, title, text, children }: { n: number; title: string; text?
 
 /** Metronome that follows the track's own beats (hidden where the platform has no beat tracker). */
 function BeatFollowSection({ bpm }: { bpm: number | null }) {
-  const { follow, followClick, followFlash, beatsPerBar } = useTools();
+  const { follow, followClick, followFlash, followCountIn, beatsPerBar } = useTools();
   const { active, analysing, error, uncertain } = useBeatFollow();
   const { isPlaying } = usePlayer();
   const beat = useFollowBeat(follow && active);
@@ -143,6 +143,12 @@ function BeatFollowSection({ bpm }: { bpm: number | null }) {
                 {s.beatFollow.flashLabel}
               </T>
               <Toggle value={followFlash} accessibilityLabel={s.beatFollow.flashA11y} onValueChange={(v) => setTools({ followFlash: v })} />
+            </View>
+            <View style={row}>
+              <T variant="callout" style={{ flex: 1 }}>
+                {s.beatFollow.countInLabel}
+              </T>
+              <Toggle value={followCountIn} accessibilityLabel={s.beatFollow.countInA11y} onValueChange={(v) => setTools({ followCountIn: v })} />
             </View>
           </View>
 

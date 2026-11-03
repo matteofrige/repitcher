@@ -88,8 +88,27 @@ class RepitchAudioModule : Module() {
       }
     }.runOnQueue(Queues.MAIN)
 
+    // Count-in: [times] file seconds (last = entry beat, may precede the position), [inBars] bar position of each.
+    AsyncFunction("playWithCountIn") { times: List<Double>, inBars: List<Int>, promise: Promise ->
+      try {
+        val f = follow
+        val p = player()
+        if (f != null && f.isFollowing && times.isNotEmpty() && times.size == inBars.size && !p.isPlayingNow) {
+          val start = p.countInStartSeconds()
+          f.armCountIn(times.toDoubleArray(), inBars.toIntArray(), start)
+          p.playRestarting()
+        } else {
+          p.play()
+        }
+        promise.resolve()
+      } catch (e: Throwable) {
+        promise.reject("E_PLAY", e.message ?: "Unable to play", e)
+      }
+    }.runOnQueue(Queues.MAIN)
+
     AsyncFunction("pause") { promise: Promise ->
       try {
+        follow?.cancelPendingCountIn()  // a plan not yet consumed must not fire on a later play
         player().pause()
         promise.resolve()
       } catch (e: Throwable) {
@@ -99,6 +118,7 @@ class RepitchAudioModule : Module() {
 
     AsyncFunction("seek") { seconds: Double, promise: Promise ->
       try {
+        follow?.cancelPendingCountIn()
         player().seek(seconds)
         promise.resolve()
       } catch (e: Throwable) {

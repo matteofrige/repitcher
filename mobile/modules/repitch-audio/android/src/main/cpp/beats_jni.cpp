@@ -109,6 +109,13 @@ struct FollowCtx {
   int latency = 0;
   size_t next = 0;
   uint32_t seenGen = 0;
+  // Count-in (see followCountIn): virtual beats before the entry beat, output frames in core time.
+  std::vector<int64_t> ciFrame;
+  std::vector<int> ciBar;
+  std::vector<char> ciForce;
+  size_t ciNext = 0;
+  bool ciActive = false;
+  double ciAfter = 0.0;  // regular beats resume after this file time
 };
 
 constexpr double kLateTolerance = 0.02;
@@ -335,6 +342,11 @@ RP_JNI(void, followPrepare)(JNIEnv*, jobject, jlong h, jdouble sampleRate) {
   f->coreFrame = 0;
   f->segActive = false;
   f->next = 0;
+  f->ciActive = false;
+  f->ciFrame.clear();
+  f->ciBar.clear();
+  f->ciForce.clear();
+  f->ciNext = 0;
   f->resync.store(true, std::memory_order_release);
 }
 
@@ -373,8 +385,42 @@ RP_JNI(void, followSegment)(JNIEnv*, jobject, jlong h, jdouble pts, jint latency
   f->segPts = pts;
   f->segBase = f->coreFrame;
   f->latency = latencyFrames;
+  f->ciActive = false;
+  f->ciFrame.clear();
+  f->ciBar.clear();
+  f->ciForce.clear();
+  f->ciNext = 0;
   f->core.clearScheduled();
   f->resync.store(true, std::memory_order_release);
+}
+
+// Playback thread, right AFTER followSegment of the same segment. `times` = file seconds of the count-in beats (may
+// precede the segment start, ascending), the LAST one is the entry beat; `bars` = bar position of each. Returns K =
+// frames of pre-roll the caller must output (silence, followMix'ed) before the track audio, so the first click lands
+// at least `leadSeconds` after the segment start. Track audio then starts K frames later (segBase moves).
+RP_JNI(jint, followCountIn)(JNIEnv* env, jobject, jlong h, jdoubleArray times, jintArray bars, jdouble leadSeconds) {
+  auto* f = fromHandle<FollowCtx>(h);
+  if (f == nullptr || times == nullptr || bars == nullptr) return 0;
+  const jsize n = env->GetArrayLength(times);
+  if (n == 0 || env->GetArrayLength(bars) != n) return 0;
+  const std::vector<double> t = toVec(env, times);
+  std::vector<int> b((size_t)n);
+  env->GetIntArrayRegion(bars, 0, n, b.data());
+  const double p = f->segPts;
+  const int64_t k = std::max<int64_t>(0, (int64_t)std::llround((p - t[0] + leadSeconds) * f->sr) - f->latency);
+  f->segBase += k;
+  f->ciFrame.assign((size_t)n, 0);
+  f->ciBar = b;
+  f->ciForce.assign((size_t)n, 0);
+  for (jsize i = 0; i < n; i++) {
+    f->ciFrame[(size_t)i] = f->segBase + (int64_t)std::llround((t[(size_t)i] - p) * f->sr) + f->latency;
+    f->ciForce[(size_t)i] = i < n - 1 ? 1 : 0;
+  }
+  f->ciNext = 0;
+  f->ciActive = true;
+  f->ciAfter = t[(size_t)n - 1] + 0.001;
+  f->resync.store(true, std::memory_order_release);
+  return (jint)k;
 }
 
 // Playback thread: adds the clicks for the next `frames` output frames to `inter` (interleaved, `channels`).
@@ -393,10 +439,27 @@ RP_JNI(void, followMix)(JNIEnv* env, jobject, jlong h, jfloatArray inter, jint f
         f->core.clearScheduled();
         const double heard = f->segPts + (double)(blockStart - f->segBase - f->latency) / f->sr;
         f->next = firstBeat(f->beats, heard - kLateTolerance);
+        if (f->ciActive) {
+          // clearScheduled dropped the queued count-in clicks: re-queue the ones not played yet.
+          f->next = std::max(f->next, firstBeat(f->beats, f->ciAfter));
+          f->ciNext = 0;
+          while (f->ciNext < f->ciFrame.size() && f->ciFrame[f->ciNext] < blockStart) ++f->ciNext;
+        }
       }
       const int bpb = f->bpb.load(std::memory_order_relaxed);
       const int down = f->downbeat.load(std::memory_order_relaxed);
-      while (f->next < f->beats.size()) {
+      if (f->ciActive) {
+        while (f->ciNext < f->ciFrame.size()) {
+          const int64_t of = f->ciFrame[f->ciNext];
+          if (of >= blockEnd + 2048) break;
+          const int bar = f->ciBar[f->ciNext];
+          if (!f->core.scheduleClick(of, bar == 0, bar, f->ciForce[f->ciNext] != 0)) break;
+          ++f->ciNext;
+        }
+        if (f->ciNext == f->ciFrame.size() && blockStart > f->ciFrame.back()) f->ciActive = false;
+      }
+      // Regular beats only after the count-in is fully queued (the queue must stay in ascending order).
+      while ((!f->ciActive || f->ciNext == f->ciFrame.size()) && f->next < f->beats.size()) {
         const int64_t of = f->segBase + (int64_t)std::llround((f->beats[f->next] - f->segPts) * f->sr) + f->latency;
         if (of >= blockEnd + 2048) break;  // keep the queue short; retried next block
         if (of >= blockStart - frames) {

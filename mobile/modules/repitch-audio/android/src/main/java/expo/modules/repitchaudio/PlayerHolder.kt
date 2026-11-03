@@ -3,6 +3,7 @@
 package expo.modules.repitchaudio
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -103,6 +104,19 @@ object PlayerHolder {
     override fun handleBuffer(buffer: java.nio.ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
       processor.lastPtsUs = presentationTimeUs
       return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+    }
+
+    // The count-in pre-roll is extra output the position must not count: subtract it, and keep the reported
+    // progress at the start position until the track itself starts. Playback thread.
+    override fun getCurrentPositionUs(sourceEnded: Boolean): Long {
+      val raw = super.getCurrentPositionUs(sourceEnded)
+      val pre = processor.preRollUs
+      if (pre <= 0 || raw == AudioSink.CURRENT_POSITION_NOT_SET) return raw
+      val v = raw - pre
+      val start = processor.segmentStartPtsUs
+      // Stamped only around the pre-roll (audibleSeconds uses it only below the start position): no allocation per call later.
+      if (v < start + 500_000L) processor.unclampedPosition = PitchAudioProcessor.PosStamp(v, SystemClock.elapsedRealtimeNanos())
+      return maxOf(v, start)
     }
   }
 

@@ -60,6 +60,15 @@ public class RepitchAudioModule: Module {
       }
     }.runOnQueue(.main)
 
+    AsyncFunction("playWithCountIn") { (times: [Double], inBars: [Int], promise: Promise) in
+      do {
+        try self.metronome.playWithCountIn(times: times, inBars: inBars)
+        promise.resolve()
+      } catch {
+        promise.reject("E_PLAY", error.localizedDescription)
+      }
+    }.runOnQueue(.main)
+
     AsyncFunction("pause") {
       self.player.pause()
     }.runOnQueue(.main)

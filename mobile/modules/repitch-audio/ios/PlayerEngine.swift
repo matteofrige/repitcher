@@ -57,6 +57,8 @@ final class PlayerEngine {
   private(set) var playbackEpoch = 0
   /// Generation whose end-of-track was already handled (completion callback and tick fallback race).
   private var endedGeneration = -1
+  /// Host seconds (AVAudioTime.seconds(forHostTime:) domain) at which a delayed start (count-in) begins rendering; nil once reached.
+  private var pendingStartHost: Double?
 
   private(set) var isPlaying = false
   private var resumeAfterInterruption = false
@@ -117,6 +119,21 @@ final class PlayerEngine {
     notifyPlayingChange()
   }
 
+  /// File position (seconds) the next play starts from.
+  var startPositionSeconds: Double {
+    guard file != nil, sampleRate > 0, pausedFrame < totalFrames else { return 0 }
+    return Double(pausedFrame) / sampleRate
+  }
+
+  /// Like `play()`, but the node starts rendering the track at host time `h` (count-in).
+  func play(atHostSeconds h: Double) throws {
+    guard file != nil else { throw PlayerEngineError.noTrack }
+    installObserversIfNeeded()
+    installRemoteCommandsIfNeeded()
+    try startPlayback(atHostSeconds: h)
+    notifyPlayingChange()
+  }
+
   func pause() {
     guard isPlaying else { return }
     pausePlayback()
@@ -130,6 +147,7 @@ final class PlayerEngine {
     let wasPlaying = isPlaying
     pausedFrame = frame
     lastKnownFrame = frame
+    pendingStartHost = nil  // the node restarts immediately
     pitchUnit?.requestReset()
     if engine.isRunning || !wasPlaying {
       scheduleSegment(from: frame)
@@ -176,11 +194,23 @@ final class PlayerEngine {
   /// when that isn't available (engine stopped) the last known value is used.
   private func currentFrame() -> AVAudioFramePosition {
     if !isPlaying { return pausedFrame }
+    if !startReached() { return segmentStartFrame }  // count-in: the track hasn't started yet
     if let nodeTime = node.lastRenderTime,
        let playerTime = node.playerTime(forNodeTime: nodeTime) {
-      lastKnownFrame = clampFrame(segmentStartFrame + playerTime.sampleTime)
+      lastKnownFrame = clampFrame(segmentStartFrame + max(0, playerTime.sampleTime))
     }
     return lastKnownFrame
+  }
+
+  /// True once a delayed start (`pendingStartHost`) has begun rendering; trivially true without one.
+  private func startReached() -> Bool {
+    guard let h = pendingStartHost else { return true }
+    if let nodeTime = node.lastRenderTime, nodeTime.isHostTimeValid,
+       AVAudioTime.seconds(forHostTime: nodeTime.hostTime) >= h {
+      pendingStartHost = nil
+      return true
+    }
+    return false
   }
 
   // MARK: - Beat follow support
@@ -198,9 +228,10 @@ final class PlayerEngine {
 
   /// Nil unless the track is playing and the node has a valid clock.
   func playbackSnapshot() -> PlaybackSnapshot? {
-    guard isPlaying, file != nil, sampleRate > 0,
+    guard isPlaying, file != nil, sampleRate > 0, startReached(),
           let nodeTime = node.lastRenderTime, nodeTime.isHostTimeValid,
-          let playerTime = node.playerTime(forNodeTime: nodeTime), playerTime.isSampleTimeValid else { return nil }
+          let playerTime = node.playerTime(forNodeTime: nodeTime), playerTime.isSampleTimeValid,
+          playerTime.sampleTime >= 0 else { return nil }
     return PlaybackSnapshot(
       hostSeconds: AVAudioTime.seconds(forHostTime: nodeTime.hostTime),
       fileFrame: Double(segmentStartFrame) + Double(playerTime.sampleTime),
@@ -253,6 +284,7 @@ final class PlayerEngine {
     // Tear down the current playback.
     generation += 1
     node.stop()
+    pendingStartHost = nil
     if isPlaying {
       accruePlayedTime()
       isPlaying = false
@@ -311,7 +343,7 @@ final class PlayerEngine {
 
   // MARK: - Playback control
 
-  private func startPlayback() throws {
+  private func startPlayback(atHostSeconds h: Double? = nil) throws {
     try AudioSessionCoordinator.shared.activate()  // keeps .playAndRecord while the tuner is listening
 
     if !engine.isRunning {
@@ -324,11 +356,19 @@ final class PlayerEngine {
       needsReschedule = true
       pitchUnit?.requestReset()
     }
+    // A delayed start needs a fresh segment: scheduleSegment resets the node's player time, so sampleTime 0 is the start.
+    if h != nil { needsReschedule = true }
     if needsReschedule {
       scheduleSegment(from: pausedFrame)
       needsReschedule = false
     }
-    node.play()
+    if let h {
+      node.play(at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: h)))
+      pendingStartHost = h
+    } else {
+      node.play()
+      pendingStartHost = nil
+    }
     isPlaying = true
     playbackEpoch &+= 1
     lastTickUptime = ProcessInfo.processInfo.systemUptime
@@ -338,6 +378,8 @@ final class PlayerEngine {
 
   private func pausePlayback() {
     let frame = currentFrame()
+    if !startReached() { needsReschedule = true }  // the node never really started
+    pendingStartHost = nil
     node.pause()
     playbackEpoch &+= 1
     accruePlayedTime()
@@ -361,6 +403,7 @@ final class PlayerEngine {
     isPlaying = false
     stopTimer()
     node.stop()
+    pendingStartHost = nil
     pausedFrame = totalFrames
     lastKnownFrame = totalFrames
     needsReschedule = true
@@ -482,6 +525,7 @@ final class PlayerEngine {
       let wasPlaying = isPlaying
       let frame = lastKnownFrame
       generation += 1
+      pendingStartHost = nil
       pausedFrame = wasPlaying ? frame : pausedFrame
       needsReschedule = true
       if wasPlaying {

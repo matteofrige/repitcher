@@ -57,6 +57,23 @@ export function isPlayerPlaying(): boolean {
   return state.isPlaying;
 }
 
+/** Plays with a count-in when beat follow wants one (registered by beatFollow to avoid a circular import). */
+type PlayStarter = (position: number) => Promise<boolean>;
+let playStarter: PlayStarter | null = null;
+export function setPlayStarter(fn: PlayStarter | null) {
+  playStarter = fn;
+}
+let startingPlay = false;
+async function tryCountIn(position: number): Promise<boolean> {
+  if (!playStarter) return false;
+  try {
+    return await playStarter(position);
+  } catch (e) {
+    console.warn('RePitch: count-in failed', e);
+    return false;
+  }
+}
+
 async function loadAt(index: number, autoplay: boolean) {
   const id = state.queue[index];
   const track = id ? getTrack(id) : undefined;
@@ -72,7 +89,11 @@ async function loadAt(index: number, autoplay: boolean) {
     await RepitchAudio.setPitch(trackPitch(track));
     if (token !== loadToken) return;
     set({ loading: false });
-    if (autoplay) await RepitchAudio.play();
+    if (autoplay) {
+      if (await tryCountIn(0)) return;
+      if (token !== loadToken) return;
+      await RepitchAudio.play();
+    }
   } catch (e) {
     if (token !== loadToken) return;
     set({ loading: false, isPlaying: false, error: localizedError(e) });
@@ -87,11 +108,22 @@ export function playTrack(trackIds: string[], index: number, sourceLabel: string
   void loadAt(index, true);
 }
 
-export async function toggle() {
+export async function toggle(opts?: { countIn?: boolean }) {
   if (state.index < 0 || state.loading) return;
   try {
-    if (state.isPlaying) await RepitchAudio.pause();
-    else await RepitchAudio.play();
+    if (state.isPlaying) {
+      await RepitchAudio.pause();
+      return;
+    }
+    if (startingPlay) return;
+    startingPlay = true;
+    try {
+      const pos = progress.duration > 0 && progress.position >= progress.duration - 0.05 ? 0 : progress.position;
+      if (opts?.countIn !== false && (await tryCountIn(pos))) return;
+      await RepitchAudio.play();
+    } finally {
+      startingPlay = false;
+    }
   } catch (e) {
     set({ error: localizedError(e) });
   }

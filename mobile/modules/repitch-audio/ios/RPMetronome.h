@@ -23,8 +23,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Updates the bar length and volume used by the clicks (atomics, valid while running).
 - (void)configureFollowWithBeatsPerBar:(NSInteger)beatsPerBar volume:(double)volume;
 /// Schedules one click at `hostSeconds` (+[AVAudioTime secondsForHostTime:] domain, when the core renders it).
+/// `forceAudible` makes it sound even when the follow click is disabled (count-in).
 /// Returns NO when the core hasn't rendered a block yet (no host/frame mapping) or the queue is full.
-- (BOOL)scheduleClickAtHostSeconds:(double)hostSeconds accent:(BOOL)accent beatIndex:(NSInteger)beatIndex;
+- (BOOL)scheduleClickAtHostSeconds:(double)hostSeconds accent:(BOOL)accent beatIndex:(NSInteger)beatIndex forceAudible:(BOOL)forceAudible;
 /// Drops every click scheduled but not yet played (seek, pause, track change).
 - (void)clearScheduled;
 

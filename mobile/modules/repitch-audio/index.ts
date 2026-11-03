@@ -118,6 +118,15 @@ export function beatFollowStart(beats: number[], beatsPerBar: number, downbeatIn
   if (!RepitchAudioModule.beatFollowStart) return Promise.resolve();
   return RepitchAudioModule.beatFollowStart(beats, beatsPerBar, downbeatIndex, clickAudible, volume);
 }
+/**
+ * Starts playback preceded by count-in clicks. `times` ascend in file-time seconds and may be negative (virtual beats before the
+ * start); the last one is the entry beat where the music comes in, earlier ones are the audible count-in. `inBars` = bar position
+ * of each (0 = accent). Without native support (or a running follow) it is a plain play.
+ */
+export function playWithCountIn(times: number[], inBars: number[]): Promise<void> {
+  if (!RepitchAudioModule.playWithCountIn) return RepitchAudioModule.play();
+  return RepitchAudioModule.playWithCountIn(times, inBars);
+}
 export function beatFollowStop(): Promise<void> {
   if (!RepitchAudioModule.beatFollowStop) return Promise.resolve();
   return RepitchAudioModule.beatFollowStop();

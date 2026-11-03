@@ -98,6 +98,12 @@ object NativeBridge {
   external fun followConfigure(handle: Long, on: Boolean, audible: Boolean, beatsPerBar: Int, downbeat: Int, volume: Double)
   external fun followSegment(handle: Long, ptsSeconds: Double, latencyFrames: Int)
 
+  /**
+   * Count-in for the segment just started (call right after [followSegment]). [times] = file seconds (ascending, may
+   * precede the segment), the last one is the entry beat. Returns the pre-roll length in frames. Playback thread.
+   */
+  external fun followCountIn(handle: Long, times: DoubleArray, inBars: IntArray, leadSeconds: Double): Int
+
   /** Adds the clicks of the next [frames] output frames to [interleaved]. Playback thread. */
   external fun followMix(handle: Long, interleaved: FloatArray, frames: Int, channels: Int)
 }

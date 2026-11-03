@@ -65,13 +65,13 @@
   _core->setVolume((float)volume);
 }
 
-- (BOOL)scheduleClickAtHostSeconds:(double)hostSeconds accent:(BOOL)accent beatIndex:(NSInteger)beatIndex {
+- (BOOL)scheduleClickAtHostSeconds:(double)hostSeconds accent:(BOOL)accent beatIndex:(NSInteger)beatIndex forceAudible:(BOOL)forceAudible {
   int64_t blockFrame = 0;
   uint64_t tag = 0;
   if (!_core->lastBlock(blockFrame, tag) || tag == 0) return NO;
   const double dt = hostSeconds - [AVAudioTime secondsForHostTime:tag];
   const int64_t frame = blockFrame + (int64_t)std::llround(dt * _core->sampleRate());
-  return _core->scheduleClick(frame, accent, (int)beatIndex);
+  return _core->scheduleClick(frame, accent, (int)beatIndex, forceAudible);
 }
 
 - (void)clearScheduled { _core->clearScheduled(); }

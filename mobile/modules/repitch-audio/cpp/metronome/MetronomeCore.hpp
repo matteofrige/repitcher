@@ -56,6 +56,7 @@ struct ScheduledClick {
   int64_t frame = 0;
   int32_t beatIndex = 0;
   bool accent = false;
+  bool forceAudible = false;  // suona anche con followAudible_ spento (count-in)
   uint32_t epoch = 0;  // generazione di clearScheduled(): i click di epoche vecchie vengono scartati
 };
 
@@ -105,11 +106,12 @@ class MetronomeCore {
   /// Con false i click programmati producono comunque l'evento ma non il suono (solo lampeggio).
   void setFollowClickAudible(bool on) { followAudible_.store(on, std::memory_order_relaxed); }
   /// Thread UI. `frame` è nel tempo del core (stesso dominio di lastBlock). Ordine crescente.
-  bool scheduleClick(int64_t frame, bool accent, int beatIndex) {
+  bool scheduleClick(int64_t frame, bool accent, int beatIndex, bool forceAudible = false) {
     ScheduledClick c;
     c.frame = frame;
     c.accent = accent;
     c.beatIndex = beatIndex;
+    c.forceAudible = forceAudible;
     c.epoch = clearEpoch_.load(std::memory_order_acquire);
     return scheduled_.push(c);
   }
@@ -198,7 +200,7 @@ class MetronomeCore {
         if (pend_.epoch != epoch || !follow) { hasPend_ = false; continue; }
         if (pend_.frame > frame_) break;
         if (frame_ - pend_.frame <= frames) {
-          if (audible) startClick(pend_.accent);
+          if (audible || pend_.forceAudible) startClick(pend_.accent);
           MetronomeEvent e;
           e.beatIndex = pend_.beatIndex;
           e.accent = pend_.accent;

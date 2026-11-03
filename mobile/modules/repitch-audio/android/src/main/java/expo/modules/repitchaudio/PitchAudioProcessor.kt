@@ -9,12 +9,14 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 
 /**
  * Real-time pitch shift (Signalsmith Stretch via JNI) as a Media3 AudioProcessor, sitting inside
  * DefaultAudioSink between the decoder and the AudioTrack.
  *
- * Why EQUAL frames in/out: this is a pure pitch shift at rate 1.0, so every input frame produces exactly one
+ * Why EQUAL frames in/out (EXCEPT the count-in pre-roll, whose duration the sink wrapper subtracts from the
+ * position, see [preRollUs]): this is a pure pitch shift at rate 1.0, so every input frame produces exactly one
  * output frame. Media3 derives the playback position and the end of stream from the number of frames that go
  * through the sink; a processor that changed the duration would need to report it through an
  * AudioProcessorChain. Same contract as RPPitchAudioUnit on iOS.
@@ -49,6 +51,34 @@ class PitchAudioProcessor : BaseAudioProcessor() {
    */
   @Volatile
   var lastPtsUs: Long = 0L
+
+  /** Count-in: file-time beats (the last is the entry beat, the others are clicks) and their bar positions. */
+  class CountInPlan(val times: DoubleArray, val inBars: IntArray, val startUs: Long)
+
+  /** Sink position (µs, before clamping) taken at [elapsedNanos] (SystemClock.elapsedRealtimeNanos). */
+  class PosStamp(val posUs: Long, val elapsedNanos: Long)
+
+  /** Main thread arms, the playback thread consumes it at the next segment start. */
+  @Volatile
+  var armedCountIn: CountInPlan? = null
+
+  /** Plan whose pre-roll belongs to the current segment. */
+  @Volatile
+  var activeCountIn: CountInPlan? = null
+
+  /** Duration of the count-in pre-roll inserted at the start of the current segment (0 = none). */
+  @Volatile
+  var preRollUs = 0L
+
+  /** File time (µs) of the first buffer of the current segment. */
+  @Volatile
+  var segmentStartPtsUs = 0L
+
+  /** Last sink position minus the pre-roll, not clamped (runs below the start position during the count-in). */
+  @Volatile
+  var unclampedPosition: PosStamp? = null
+
+  private var pendingPreRollFrames = 0
 
   /** Stretcher delay (input + output), seconds. The audio heard at sink position p is the file at p - latency. */
   @Volatile
@@ -92,11 +122,20 @@ class PitchAudioProcessor : BaseAudioProcessor() {
     // Seek / new stream: drop the stretcher's internal overlap state (applied in the next queueInput).
     resetPending = true
     segmentPending = true
+    clearCountInState()  // armedCountIn stays: the flush is usually caused by our own seek
   }
 
   override fun onReset() {
     destroyHandle()
     resetPending = false
+    clearCountInState()
+  }
+
+  private fun clearCountInState() {
+    preRollUs = 0L
+    pendingPreRollFrames = 0
+    activeCountIn = null
+    unclampedPosition = null
   }
 
   override fun queueInput(inputBuffer: ByteBuffer) {
@@ -118,6 +157,16 @@ class PitchAudioProcessor : BaseAudioProcessor() {
     if (segmentPending) {
       // First buffer after a flush: its file time is the sink's presentation timestamp.
       if (follow != 0L) NativeBridge.followSegment(follow, lastPtsUs / 1e6, latencyFrames)
+      segmentStartPtsUs = lastPtsUs
+      val plan = armedCountIn
+      // The pts check avoids consuming the plan on a stale segment that our own seek is about to flush.
+      if (plan != null && follow != 0L && abs(lastPtsUs - plan.startUs) < 250_000) {
+        armedCountIn = null
+        val k = NativeBridge.followCountIn(follow, plan.times, plan.inBars, COUNT_IN_LEAD_SECONDS)
+        pendingPreRollFrames = k
+        preRollUs = k * 1_000_000L / cfgSampleRate
+        activeCountIn = plan
+      }
       segmentPending = false
     }
     val semis = semitones
@@ -126,11 +175,27 @@ class PitchAudioProcessor : BaseAudioProcessor() {
       appliedSemitones = semis
     }
 
-    val out = replaceOutputBuffer(frames * channels * 2)
+    val pre = pendingPreRollFrames
+    pendingPreRollFrames = 0
+    val out = replaceOutputBuffer((pre + frames) * channels * 2)
     val chunkFrames = CHUNK_FRAMES
     if (inScratch.size < chunkFrames * channels) {
       inScratch = FloatArray(chunkFrames * channels)
       outScratch = FloatArray(chunkFrames * channels)
+    }
+
+    // Count-in pre-roll: silence + the count-in clicks, before the first track frame.
+    var rolled = 0
+    while (rolled < pre) {
+      val n = minOf(chunkFrames, pre - rolled)
+      val samples = n * channels
+      java.util.Arrays.fill(outScratch, 0, samples, 0f)
+      if (follow != 0L) NativeBridge.followMix(follow, outScratch, n, channels)
+      for (i in 0 until samples) {
+        val v = (outScratch[i] * 32767f).coerceIn(-32768f, 32767f)
+        out.putShort(v.toInt().toShort())
+      }
+      rolled += n
     }
 
     var done = 0
@@ -199,5 +264,6 @@ class PitchAudioProcessor : BaseAudioProcessor() {
   private companion object {
     const val MAX_CHANNELS = 8
     const val CHUNK_FRAMES = 4096
+    const val COUNT_IN_LEAD_SECONDS = 0.1
   }
 }

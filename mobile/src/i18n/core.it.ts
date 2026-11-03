@@ -289,6 +289,8 @@ export const core = {
     footnote: 'Click e lampeggio sui battiti di questo brano: seguono anche rallentando e accelerando.',
     clickLabel: 'Click udibile',
     flashLabel: 'Lampeggio dello schermo',
+    countInLabel: 'Battuta di attacco al Play',
+    countInA11y: 'Battuta di attacco: una battuta di click prima che parta il brano',
     analysingNote: 'Solo la prima volta, richiede qualche secondo.',
     invalidNote: 'Batti il tempo per insegnarlo all’app.',
     tapTempo: 'Batti il tempo',

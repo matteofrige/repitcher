@@ -202,6 +202,19 @@ static void scheduledTest() {
     std::snprintf(d, sizeof d, "click=%zu eventi=%zu", rs.onsets.size(), rs.events.size());
     check(rs.onsets.empty() && rs.events.size() == 2 && rs.events[1].frameTime == 9000, "follow silenzioso: solo eventi", d);
   }
+  // Click forzato udibile (count-in): suona anche con follow silenzioso, quello normale no.
+  {
+    MetronomeCore q;
+    q.prepare(sr); q.setFollow(true); q.setFollowClickAudible(false); q.setVolume(1.f);
+    q.scheduleClick(3000, true, 0, true);
+    q.scheduleClick(9000, false, 1);
+    Run rs;
+    renderBlocks(q, rs, 20000, [](int64_t) {});
+    bool first = false, second = false;
+    for (auto o : rs.onsets) { if (o >= 3000 && o < 3100) first = true; if (o >= 9000 && o < 9100) second = true; }
+    std::snprintf(d, sizeof d, "click=%zu eventi=%zu", rs.onsets.size(), rs.events.size());
+    check(first && !second && rs.events.size() == 2, "forceAudible: suona solo il forzato", d);
+  }
   // Ritardo < 1 blocco: suona a inizio blocco; più vecchio: scartato.
   {
     MetronomeCore q;

@@ -91,6 +91,8 @@ export type ToolsSettings = {
   followClick: boolean;
   /** Beat follow: screen flash. */
   followFlash: boolean;
+  /** Beat follow: one bar of clicks before the track starts playing. */
+  followCountIn: boolean;
   /** Pitch class 0…11 (C = 0) or 'auto'. */
   tunerTarget: number | 'auto';
 } & TemperamentSettings;
@@ -103,6 +105,7 @@ export const DEFAULT_TOOLS: ToolsSettings = {
   follow: false,
   followClick: true,
   followFlash: true,
+  followCountIn: true,
   tunerTarget: 'auto',
   ...DEFAULT_TEMPERAMENT,
 };
@@ -136,6 +139,7 @@ export function cleanTools(raw: any): ToolsSettings {
     follow: t.follow === true,
     followClick: t.followClick !== false,
     followFlash: t.followFlash !== false,
+    followCountIn: t.followCountIn !== false,
     tunerTarget: Number.isInteger(target) && target >= 0 && target <= 11 ? target : 'auto',
     ...cleanTemperament(t),
   };

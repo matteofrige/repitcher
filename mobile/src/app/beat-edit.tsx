@@ -231,7 +231,7 @@ export default function BeatEditScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={isPlaying ? s.beatEdit.pauseA11y : s.beatEdit.playA11y}
-                onPress={() => void toggle()}
+                onPress={() => void toggle({ countIn: false })}
                 style={({ pressed }) => ({
                   width: 56,
                   height: 56,

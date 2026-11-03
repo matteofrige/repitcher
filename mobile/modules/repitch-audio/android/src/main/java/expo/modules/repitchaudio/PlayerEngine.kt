@@ -129,6 +129,35 @@ class PlayerEngine(context: Context, private val emit: (String, Map<String, Any?
     syncPlaying()
   }
 
+  /** True when play was already requested (module guard for the count-in). */
+  val isPlayingNow: Boolean get() = exo.isPlaying || exo.playWhenReady
+
+  /** Position (s) playback would start from: 0 after the end of the track. Compute BEFORE [playRestarting]. */
+  fun countInStartSeconds(): Double =
+    if (exo.mediaItemCount == 0) 0.0
+    else if (exo.playbackState == Player.STATE_ENDED) 0.0
+    else exo.currentPosition.coerceAtLeast(0L) / 1000.0
+
+  /**
+   * Like [play] but always flushes the pipeline, so audio already buffered cannot play before the count-in
+   * (the first buffer after the flush is where the pre-roll is inserted).
+   */
+  fun playRestarting() {
+    if (exo.mediaItemCount == 0) throw IllegalStateException("No track loaded")
+    endedHandled = false
+    when (exo.playbackState) {
+      Player.STATE_ENDED -> exo.seekTo(0)
+      Player.STATE_IDLE -> {
+        val pos = exo.currentPosition
+        exo.prepare()
+        exo.seekTo(pos)
+      }
+      else -> exo.seekTo(exo.currentPosition)
+    }
+    exo.play()
+    syncPlaying()
+  }
+
   fun pause() {
     exo.pause()
     syncPlaying()
@@ -157,6 +186,13 @@ class PlayerEngine(context: Context, private val emit: (String, Map<String, Any?
    */
   fun audibleSeconds(): Double? {
     if (exo.mediaItemCount == 0 || !exo.isPlaying) return null
+    val proc = PlayerHolder.processor
+    val stamp = proc.unclampedPosition
+    if (proc.preRollUs > 0 && stamp != null) {
+      // Count-in pre-roll: the sink position runs continuously from below the start position.
+      val pos = stamp.posUs / 1e6 + (SystemClock.elapsedRealtimeNanos() - stamp.elapsedNanos) / 1e9
+      if (pos < proc.segmentStartPtsUs / 1e6) return pos - proc.latencySeconds
+    }
     return exo.currentPosition / 1000.0 - PlayerHolder.processor.latencySeconds
   }
 

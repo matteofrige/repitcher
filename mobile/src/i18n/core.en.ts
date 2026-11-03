@@ -273,6 +273,8 @@ export const core: CoreStrings = {
     footnote: 'Clicks and flashes on this track’s beats, following slow-downs and speed-ups.',
     clickLabel: 'Audible click',
     flashLabel: 'Screen flash',
+    countInLabel: 'Count-in bar on Play',
+    countInA11y: 'Count-in: one bar of clicks before the track starts',
     analysingNote: 'Only the first time; it takes a few seconds.',
     invalidNote: 'Tap the tempo to teach it to the app.',
     tapTempo: 'Tap the tempo',

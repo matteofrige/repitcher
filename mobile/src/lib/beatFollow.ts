@@ -4,7 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import * as RepitchAudio from '../../modules/repitch-audio';
 import { ensureBeats, getTools, getTrack, rephaseBeats, subscribeLibrary, type TrackBeats } from './library';
 import { isMetronomeRunning, stopMetronome } from './metronome';
-import { currentTrackId, isPlayerPlaying, subscribePlayer } from './player';
+import { countInPlan } from './countIn';
+import { currentTrackId, isPlayerPlaying, setPlayStarter, subscribePlayer } from './player';
 
 /** Metronome that follows the loaded track: click/flash on the beats found by the native tracker. */
 type State = {
@@ -45,6 +46,8 @@ let token = 0;
 /** Beats native currently has (same `times` array + downbeat = nothing to resend). */
 let startedTimes: number[] | null = null;
 let startedDownbeat = 0;
+/** The in-flight start (never rejects). */
+let starting: Promise<void> = Promise.resolve();
 
 function options(beats?: TrackBeats | null) {
   const t = getTools();
@@ -102,7 +105,7 @@ function reconcile() {
   if (want === wantedId) {
     if (startedFor === null && want !== null && state.error === 'invalid' && getTrack(want)?.beats?.valid) {
       // A refused track became followable after the user's corrections (taps).
-      void begin(want, ++token);
+      starting = begin(want, ++token);
       return;
     }
     if (startedFor !== null && startedFor === want) {
@@ -138,16 +141,36 @@ function reconcile() {
     set({ active: false, analysing: false, error: null, uncertain: false });
     return;
   }
-  void begin(want, mine);
+  starting = begin(want, mine);
 }
 
 let wired = false;
 export function initBeatFollow() {
   if (wired) return;
   wired = true;
+  setPlayStarter(playWithCountIn);
   subscribeLibrary(reconcile);
   subscribePlayer(reconcile);
   reconcile();
+}
+
+/** Starts playback with a count-in when the follow runs (or is about to run) on the loaded track. False = caller plays normally. */
+export async function playWithCountIn(position: number): Promise<boolean> {
+  const tools = getTools();
+  if (!tools.follow || !tools.followCountIn || !RepitchAudio.beatFollowAvailable()) return false;
+  const id = currentTrackId();
+  if (!id || wantedId !== id) return false;
+  if (state.analysing) return false; // never wait on a fresh analysis: it takes seconds
+  if (startedFor !== id) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([starting, new Promise<void>((resolve) => (timer = setTimeout(resolve, 2000)))]);
+    clearTimeout(timer);
+  }
+  if (currentTrackId() !== id || startedFor !== id || !state.active || !startedTimes) return false;
+  const plan = countInPlan(startedTimes, position, getTools().beatsPerBar, startedDownbeat);
+  if (!plan) return false;
+  await RepitchAudio.playWithCountIn(plan.times, plan.inBars);
+  return true;
 }
 
 function subscribe(l: () => void) {
@@ -160,7 +183,7 @@ export const useBeatFollow = () => useSyncExternalStore(subscribe, () => state, 
 
 /** Re-runs the detection / start for the wanted track (e.g. after a failed analysis). */
 export function retryBeatFollow() {
-  if (wantedId !== null && startedFor !== wantedId) void begin(wantedId, ++token);
+  if (wantedId !== null && startedFor !== wantedId) starting = begin(wantedId, ++token);
 }
 
 /** Bar position (0-based) of the beat currently sounding while following, else -1. */
